@@ -24,6 +24,9 @@ DATESTRING=`date +"%s%N"`
 FILELISTNAME=filelist.txt.${DATESTRING}
 OUTTRAJDIR="./trajs/"
 TRAJFILENAME=${OUTTRAJDIR}/trajectories.txt.${UQSTR}
+
+mkdir -p $OUTTRAJDIR
+
 touch $FILELISTNAME
 
 #for zz in ${YEARSTRARR}
