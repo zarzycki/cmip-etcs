@@ -2,20 +2,26 @@
 
 ############ USER OPTIONS #####################
 
-## Unique string (useful for processing multiple data sets in same folder
+## Unique string
 UQSTR=GISS-E2-1-G
 
-## If using unstructured CAM-SE ne120 data
+## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
 
-############ MACHINE SPECIFIC #####################
+############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
-## Path where tracker files are
-PATHTOFILES=/Users/cmz5202/NetCDF/CMIP6/
-## Path to TempestExtremes binaries on YS
-TEMPESTEXTREMESDIR=/Users/cmz5202/Software/tempestextremes/
-## Topography filter file (needs to be on same grid as PSL, U, V, etc. data
-TOPOFILE=/Users/cmz5202/NetCDF/topo_files/${UQSTR}.topo.nc
+if [[ $(hostname -s) = cheyenne* ]]; then
+  TEMPESTEXTREMESDIR=/Users/cmz5202/Software/tempestextremes/
+  PATHTOFILES=/Users/cmz5202/NetCDF/CMIP6/
+  TOPOFILE=/Users/cmz5202/NetCDF/topo_files/${UQSTR}.topo.nc
+elif [[ $(hostname -s) = MET-MAC* ]]; then
+  TEMPESTEXTREMESDIR=/Users/cmz5202/Software/tempestextremes/
+  PATHTOFILES=/Users/cmz5202/NetCDF/CMIP6/
+  TOPOFILE=/Users/cmz5202/NetCDF/topo_files/${UQSTR}.topo.nc
+else
+  echo "Can't figure out hostname, exiting"
+  exit
+fi
 
 ############ TRACKER MECHANICS #####################
 starttime=$(date -u +"%s")
