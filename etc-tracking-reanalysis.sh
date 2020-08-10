@@ -4,8 +4,8 @@
 
 ## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
-DO_TRACKS=false
-DO_EXTRACT=true
+DO_TRACKS=true
+DO_EXTRACT=false
 
 ## Unique string
 
@@ -24,7 +24,7 @@ DO_EXTRACT=true
 #GRIDDATE="gn/v????????"
 #STYR="-1"
 
-## CMZ: issues with snow
+## CMZ: issues with snow files
 #UQSTR="IPSL-CM6A-LR"
 #PARENTSTR="IPSL"
 #GRIDDATE="gr/v????????"
@@ -35,10 +35,27 @@ DO_EXTRACT=true
 #GRIDDATE="gn/v????????"
 #STYR="1960"
 
-UQSTR="MRI-ESM2-0"
-PARENTSTR="MRI"
+#UQSTR="MRI-ESM2-0"
+#PARENTSTR="MRI"
+#GRIDDATE="gn/v????????"
+#STYR="1960"
+
+## CMZ: issues with time coordinate in pr/prsn files
+#UQSTR="BCC-CSM2-MR"
+#PARENTSTR="BCC"
+#GRIDDATE="gn/v????????"
+#STYR="1950"
+
+# CMZ: need to flatten time
+#UQSTR="NESM3"
+#PARENTSTR="NUIST"
+#GRIDDATE="gn/v????????"
+#STYR="1960"
+
+UQSTR="SAM0-UNICON"
+PARENTSTR="SNU"
 GRIDDATE="gn/v????????"
-STYR="1960"
+STYR="1950"
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
@@ -84,6 +101,15 @@ if [ "$DO_TRACKS" = true ] ; then
   $THISSED -e 's?$?;'"${TOPOFILE}"'?' -i $FILELISTNAME
   cat $FILELISTNAME
 
+  # Check if topo file exists, if not generate one using the first PSL file
+  if [ ! -f ${TOPOFILE} ]; then
+    echo "Topo file ${TOPOFILE} not found!"
+    FIRSTPSLFILE=$(echo $(head -n 1 ${FILELISTNAME}) | awk -F';' '{print $1}')
+    ncl data-process/make_topo_file.ncl 'trackerFileName="'$FIRSTPSLFILE'"' 'outFileName="'${TOPOFILE}'"'
+  else
+    echo "Topo file ${TOPOFILE} already exists."
+  fi
+
   DCU_PSLNAME="psl"    # Name of PSL on netcdf files
   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
@@ -118,7 +144,7 @@ if [ "$DO_TRACKS" = true ] ; then
   rm ${FILELISTNAME}
   rm log*.txt
 
-  ${TEMPESTEXTREMESDIR}/bin/HistogramNodes --in ${TRAJFILENAME} --nlat 36 --nlon 72 --iloncol 3 --ilatcol 4 --out "density_${UQSTR}.nc"
+  ${TEMPESTEXTREMESDIR}/bin/HistogramNodes --in ${TRAJFILENAME} --nlat 36 --nlon 72 --iloncol 3 --ilatcol 4 --out "${PATHTOFILES3}/density_${UQSTR}.nc"
 fi
 
 ############ FIELD EXTRACTION #####################
@@ -136,7 +162,7 @@ if [ "$DO_EXTRACT" = true ] ; then
   $THISSED -i 's?'${PATHTOFILES2//\?/\.}'?'${PATHTOFILES3}'?g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
 
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter2 --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --nearbyblobs "pr,2.0,>=,5.0e-5,50.0" --maskvar "mask" #--bydist 25.0    pr is kg/m2/s so pr/1000 => m/s
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --nearbyblobs "pr,2.0,>=,5.0e-5,50.0" --maskvar "mask" #--bydist 25.0    pr is kg/m2/s so pr/1000 => m/s
 
   SNOWFILES=`find ${PATHTOFILES2//pr/prsn} -name "prsn_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n`
   for f in $SNOWFILES; do
@@ -153,8 +179,8 @@ if [ "$DO_EXTRACT" = true ] ; then
   dumfiles=( $pattern )
   ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,slp,phis" --col_filter "slp,<=,97000."
 
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr,prsn" --max_time_delta "2h" --out_data "composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
-
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr,prsn" --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
+  
   # Clean up
   rm ${NODELISTNAME}
   rm ${NODELISTNAMEFILT}
