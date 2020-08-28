@@ -179,6 +179,13 @@ if [ "$DO_EXTRACT" = true ] ; then
   dumfiles=( $pattern )
   ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,slp,phis" --col_filter "slp,<=,97000."
 
+# in hypothetical world, where flatten time would go
+#  for f in /glade/u/home/zarzycki/scratch/CMIPTMP/NESM3/pr_*nc
+#  do
+#    echo $f
+#    ncl flatten-time.ncl 'filename="'${f}'"'
+#  done
+
   ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr,prsn" --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
   
   # Clean up
