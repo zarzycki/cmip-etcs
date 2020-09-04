@@ -1,3 +1,8 @@
+*-traj.txt
+*pdf
+filelist*
+cyclone*
+log*txt
 nohup*
 trajectories.txt*
 *.nc

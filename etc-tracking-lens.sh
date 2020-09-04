@@ -4,66 +4,19 @@
 
 ## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
-DO_TRACKS=true
+DO_TRACKS=false
 DO_EXTRACT=true
 
 ## Unique string
-
-#UQSTR="GFDL-CM4"
-#PARENTSTR="NOAA-GFDL"
-#GRIDDATE="gr1/v20180701"
-#STYR="1960"
-
-#UQSTR="GISS-E2-1-G"
-#PARENTSTR="NASA-GISS"
-#GRIDDATE="gn/v????????"
-#STYR="-1"
-
-#UQSTR="MPI-ESM1-2-LR"
-#PARENTSTR="MPI-M"
-#GRIDDATE="gn/v????????"
-#STYR="-1"
-
-## CMZ: issues with snow files
-#UQSTR="IPSL-CM6A-LR"
-#PARENTSTR="IPSL"
-#GRIDDATE="gr/v????????"
-#STYR="-1"
-
-#UQSTR="ACCESS-ESM1-5"
-#PARENTSTR="CSIRO"
-#GRIDDATE="gn/v????????"
-#STYR="1960"
-
-#UQSTR="MRI-ESM2-0"
-#PARENTSTR="MRI"
-#GRIDDATE="gn/v????????"
-#STYR="1960"
-
-## CMZ: issues with time coordinate in pr/prsn files
-#UQSTR="BCC-CSM2-MR"
-#PARENTSTR="BCC"
-#GRIDDATE="gn/v????????"
-#STYR="1950"
-
-# CMZ: need to flatten time
-#UQSTR="NESM3"
-#PARENTSTR="NUIST"
-#GRIDDATE="gn/v????????"
-#STYR="1960"
-
-UQSTR="SAM0-UNICON"
-PARENTSTR="SNU"
-GRIDDATE="gn/v????????"
-STYR="1950"
+UQSTR="CESM1-LENS"
+PARENTSTR="CESM"
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
 if [[ $HOSTNAME = cheyenne* ]]; then
   TEMPESTEXTREMESDIR=/glade/u/home/zarzycki/work/tempestextremes_noMPI/
-  #TEMPESTEXTREMESDIR=/glade/u/home/ullrich/teold/tempestextremes_20200727_d988498/
-  PATHTOFILES=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/r1i1p1f1/6hrPlevPt/psl/${GRIDDATE}/psl/
-  PATHTOFILES2=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/r1i1p1f1/3hr/pr/${GRIDDATE}/pr/
+  PATHTOFILES=/glade/collections/cdg/data/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/hourly6/PSL/
+  PATHTOFILES2=/glade/collections/cdg/data/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/hourly6/PRECT/
   PATHTOFILES3=/glade/scratch/zarzycki/CMIPTMP/${UQSTR}/
   TOPOFILE=/glade/work/zarzycki/topo-files/CMIP6/${UQSTR}.topo.nc
   THISSED="sed"
@@ -87,6 +40,10 @@ FILELISTNAME=filelist.txt.${DATESTRING}
 NODELISTNAME=nodelist.txt.${DATESTRING}
 NODELISTNAMEFILT=nodelistfilt.txt.${DATESTRING}
 
+####
+
+mkdir -p ${PATHTOFILES3}
+
 ############ TRACK ETCs #####################
 
 ## Build trajectory files; the most time intensive part of this.
@@ -97,7 +54,7 @@ if [ "$DO_TRACKS" = true ] ; then
   touch $FILELISTNAME
 
   #### Files
-  find ${PATHTOFILES} -name "psl_6hrPlevPt_${UQSTR}_historical_*_*0101*nc" | sort -n >> $FILELISTNAME
+  find ${PATHTOFILES} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PSL.1990010100Z-2005123118Z.nc" | sort -n >> $FILELISTNAME
   # Add any static file(s) to each line
   $THISSED -e 's?$?;'"${TOPOFILE}"'?' -i $FILELISTNAME
   cat $FILELISTNAME
@@ -111,11 +68,11 @@ if [ "$DO_TRACKS" = true ] ; then
     echo "Topo file ${TOPOFILE} already exists."
   fi
 
-  DCU_PSLNAME="psl"    # Name of PSL on netcdf files
+  DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
   DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
-  SN_TRAERA5NGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
+  SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
   SN_TRAJMINLENGTH=10  # Min length of trajectory (nsteps)
   SN_TRAJMAXGAP=3      # Max gap within a trajectory (nsteps)
   # used for TCs, not ETCs (right now)
@@ -137,7 +94,7 @@ if [ "$DO_TRACKS" = true ] ; then
   fi;
 
   # Stitch candidate cyclones together
-  STRSTITCH="--range ${SN_TRAERA5NGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  STRSTITCH="--range ${SN_TRAJRANGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
   ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files
@@ -155,51 +112,44 @@ if [ "$DO_EXTRACT" = true ] ; then
 
   touch $NODELISTNAME
 
-  find ${PATHTOFILES2} -name "pr_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n >> $NODELISTNAME
+  find ${PATHTOFILES2} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PRECT.1990010100Z-2005123118Z.nc" | sort -n >> $NODELISTNAME
 
   ## Create files and folder to hold filtered data
   cp $NODELISTNAME $NODELISTNAMEFILT
-  $THISSED -i 's/pr_/pr_FILT_/g' $NODELISTNAMEFILT
   $THISSED -i 's?'${PATHTOFILES2//\?/\.}'?'${PATHTOFILES3}'?g' $NODELISTNAMEFILT
+  $THISSED -i 's/PRECT./PRECT_FILT./g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
+  
+  
+  #${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "PRECT" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
 
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
+  # Declare an array of string with type
+  declare -a StringArray=("TREFHT" "CLDTOT" "QREFHT" "TGCLDIWP" "TGCLDLWP")
 
-   TASFILES=`find ${PATHTOFILES2//pr/tas} -name "tas_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n`
-   for f in $TASFILES; do
-     echo "Appending... $f"
-     # Find matching *FILT* file with last 15 characters (date and nc)
-     THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
-     # Append snow to FILT file
-     ncks -A -v tas $f $THISPRECFILE
-     # Use mask var to mask off non-cyclone
-     ncap2 -O -s 'where(mask!=1) tas=0.0' $THISPRECFILE $THISPRECFILE
-   done
+  EXTRASTR=""
+  # Iterate the string array using for loop
+  for val in ${StringArray[@]}; do
+    VAR=$val
+    EXTRASTR=$EXTRASTR","$VAR
+    SNOWFILES=`find ${PATHTOFILES2//PRECT/${VAR}} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.${VAR}.1990010100Z-2005123118Z.nc" | sort -n`
+    echo $SNOWFILES
+    for f in $SNOWFILES; do
+      echo "Appending... $f"
+      # Find matching *FILT* file with last 15 characters (date and nc)
+      THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
+      # Append snow to FILT file
+      ##ncks -A -v ${VAR} $f $THISPRECFILE
+      # Use mask var to mask off non-cyclone
+      echo "... masking"
+      ##ncap2 -O -s 'where(mask!=1) '${VAR}'=0.0' $THISPRECFILE $THISPRECFILE
+    done
+  done
 
-   SNOWFILES=`find ${PATHTOFILES2//pr/prsn} -name "prsn_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n`
-   for f in $SNOWFILES; do
-     echo "Appending... $f"
-     # Find matching *FILT* file with last 15 characters (date and nc)
-     THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
-     # Append snow to FILT file
-     ncks -A -v prsn $f $THISPRECFILE
-     # Use mask var to mask off non-cyclone
-     ncap2 -O -s 'where(mask!=1) prsn=0.0' $THISPRECFILE $THISPRECFILE
-   done
-
-  pattern=${PATHTOFILES3}"/pr_FILT_3hr_${UQSTR}_historical_r1i1p1f1*nc"
+  pattern=${PATHTOFILES3}"/b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PRECT_FILT.1990010100Z-2005123118Z.nc"
   dumfiles=( $pattern )
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,slp,phis" --colfilter "slp,<=,97000."
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,slp,phis" --colfilter "slp,<=,99000."
 
-### KEEP COMMENTED
-# in hypothetical world, where flatten time would go
-#  for f in /glade/u/home/zarzycki/scratch/CMIPTMP/NESM3/pr_*nc
-#  do
-#    echo $f
-#    ncl flatten-time.ncl 'filename="'${f}'"'
-#  done
-
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr" --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "PRECT"${EXTRASTR} --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
   
   # Clean up
   rm ${NODELISTNAME}
@@ -210,3 +160,5 @@ fi
 endtime=$(date -u +"%s")
 tottime=$(($endtime-$starttime))
 printf "${tottime},${TRAJFILENAME}\n" >> timing.txt
+
+
