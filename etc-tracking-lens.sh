@@ -4,7 +4,7 @@
 
 ## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
-DO_TRACKS=false
+DO_TRACKS=true
 DO_EXTRACT=true
 
 ## Unique string
@@ -94,7 +94,7 @@ if [ "$DO_TRACKS" = true ] ; then
   fi;
 
   # Stitch candidate cyclones together
-  STRSTITCH="--range ${SN_TRAJRANGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  STRSTITCH="--range ${SN_TRAJRANGE} --mintime 60h --maxgap 18h --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
   ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files
@@ -120,8 +120,7 @@ if [ "$DO_EXTRACT" = true ] ; then
   $THISSED -i 's/PRECT./PRECT_FILT./g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
   
-  
-  #${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "PRECT" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "PRECT" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
 
   # Declare an array of string with type
   declare -a StringArray=("TREFHT" "CLDTOT" "QREFHT" "TGCLDIWP" "TGCLDLWP")
@@ -138,10 +137,10 @@ if [ "$DO_EXTRACT" = true ] ; then
       # Find matching *FILT* file with last 15 characters (date and nc)
       THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
       # Append snow to FILT file
-      ##ncks -A -v ${VAR} $f $THISPRECFILE
+      ncks -A -v ${VAR} $f $THISPRECFILE
       # Use mask var to mask off non-cyclone
       echo "... masking"
-      ##ncap2 -O -s 'where(mask!=1) '${VAR}'=0.0' $THISPRECFILE $THISPRECFILE
+      ncap2 -O -s 'where(mask!=1) '${VAR}'=0.0' $THISPRECFILE $THISPRECFILE
     done
   done
 

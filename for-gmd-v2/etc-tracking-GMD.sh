@@ -36,9 +36,9 @@ starttime=$(date -u +"%s")
 DATESTRING=`date +"%s%N"`
 OUTTRAJDIR="./trajs/"
 TRAJFILENAME=${OUTTRAJDIR}/trajectories.txt.${UQSTR}
-FILELISTNAME=filelist.txt.${DATESTRING}
-NODELISTNAME=nodelist.txt.${DATESTRING}
-NODELISTNAMEFILT=nodelistfilt.txt.${DATESTRING}
+FILELISTNAME=B20TRC5CNBDRD.001.PS_list.txt
+NODELISTNAME=B20TRC5CNBDRD.001.PRECT_list.txt
+NODELISTNAMEFILT=B20TRC5CNBDRD.001.PRECT_FILT_list.txt
 
 ####
 
@@ -51,32 +51,21 @@ if [ "$DO_TRACKS" = true ] ; then
 
   mkdir -p $OUTTRAJDIR
 
-  touch $FILELISTNAME
-
   #### Files
-  find ${PATHTOFILES} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PSL.1990010100Z-2005123118Z.nc" | sort -n >> $FILELISTNAME
-  # Add any static file(s) to each line
-  cat $FILELISTNAME
+  find ${PATHTOFILES} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PSL.1990010100Z-2005123118Z.nc" | sort -n >> B20TRC5CNBDRD.001.PS_list.txt
 
-  touch cyclones.${DATESTRING}
-  ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list ${FILELISTNAME} --out cyclones_tempest.${DATESTRING} --closedcontourcmd PSL,200.0,6.0,0 --mergedist 6.0 --searchbymin "PSL" --outputcmd "PSL,min,0"
+  ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list B20TRC5CNBDRD.001.PS_list.txt --out cyclone_candidates --closedcontourcmd PSL,200.0,6.0,0 --mergedist 6.0 --searchbymin "PSL" --outputcmd "PSL,min,0"
   
-  cat cyclones_tempest.${DATESTRING}* >> cyclones.${DATESTRING}
-  rm cyclones_tempest.${DATESTRING}*
+  ls cyclone_candidates* > candidate_list.txt
 
-  ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp" --in cyclones.${DATESTRING} --out etc-all-traj.txt --range 6.0 --mintime 60h --maxgap 3 --min_endpoint_dist 12.0 --threshold "lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp" --in_list candidate_list.txt --out etc-all-traj.txt --range 6.0 --mintime 60h --maxgap 18h --min_endpoint_dist 12.0 --threshold "lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
   
-  rm cyclones.${DATESTRING}   #Delete candidate cyclone file
-  rm ${FILELISTNAME}
-  rm log*.txt
 fi
 
 ############ FIELD EXTRACTION #####################
 ######## OK, do some node work now that we've tracked
 
 if [ "$DO_EXTRACT" = true ] ; then
-
-  touch $NODELISTNAME
 
   find ${PATHTOFILES2} -name "b.e11.B20TRC5CNBDRD.f09_g16.001.cam.h2.PRECT.1990010100Z-2005123118Z.nc" | sort -n >> $NODELISTNAME
 
@@ -86,15 +75,11 @@ if [ "$DO_EXTRACT" = true ] ; then
   $THISSED -i 's/PRECT./PRECT_FILT./g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
   
-  #${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile etc-all-traj.txt --in_fmt "lon,lat,slp" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "PRECT" --bydist 25.0 --maskvar "mask"
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile etc-all-traj.txt --in_fmt "lon,lat,slp" --in_data_list B20TRC5CNBDRD.001.PRECT_list.txt --out_data_list B20TRC5CNBDRD.001.PRECT_FILT_list.txt --var "PRECT" --bydist 25.0 --maskvar "mask"
   
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile etc-all-traj.txt --in_data_list ${NODELISTNAME} --in_fmt "lon,lat,slp" --out_fmt "lon,lat,slp" --out_nodefile etc-strong-traj.txt --colfilter "slp,<=,99000."
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile etc-all-traj.txt --in_data_list B20TRC5CNBDRD.001.PRECT_list.txt --in_fmt "lon,lat,slp" --out_fmt "lon,lat,slp" --out_nodefile etc-strong-traj.txt --colfilter "slp,<=,99000."
   
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile etc-strong-traj.txt --in_fmt "lon,lat,slp" --in_data_list "${NODELISTNAMEFILT}" --out_data "composite_PRECT.nc" --var "PRECT" --max_time_delta "2h" --dx 1.0 --resx 80 --op "mean"  
-  
-  # Clean up
-  rm ${NODELISTNAME}
-  rm ${NODELISTNAMEFILT}
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile etc-strong-traj.txt --in_fmt "lon,lat,slp" --in_data_list B20TRC5CNBDRD.001.PRECT_FILT_list.txt --out_data "composite_PRECT.nc" --var "PRECT" --max_time_delta "2h" --dx 1.0 --resx 80 --op "mean" --snapshots 
 
 fi
 

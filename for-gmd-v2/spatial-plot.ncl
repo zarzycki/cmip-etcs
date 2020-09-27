@@ -1,7 +1,7 @@
 load "~/sw/coastal-storm-metrics/ncl/functions/getTrajectoriesGeneric.ncl"
 load "~/sw/coastal-storm-metrics/ncl/functions/trackDensity.ncl"
 
-thefile="etc-all-traj.txt"
+thefile="etc-strong-traj.txt"
 ncols = -1 ; number of columns in non-header rows of trajectory file
 maxLines = -1  ; set to -1 for auto-detection
 traj_data = getTrajectoriesGeneric(thefile,ncols,maxLines,"start","tab",False,False)

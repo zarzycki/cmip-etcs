@@ -6,6 +6,7 @@
 CONNECTFLAG="" 
 DO_TRACKS=true
 DO_EXTRACT=true
+ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 
 ## Unique string
 
@@ -35,6 +36,11 @@ DO_EXTRACT=true
 #GRIDDATE="gn/v????????"
 #STYR="1960"
 
+UQSTR="MIROC6"
+PARENTSTR="MIROC"
+GRIDDATE="gn/v????????"
+STYR="-1"
+
 #UQSTR="MRI-ESM2-0"
 #PARENTSTR="MRI"
 #GRIDDATE="gn/v????????"
@@ -52,18 +58,19 @@ DO_EXTRACT=true
 #GRIDDATE="gn/v????????"
 #STYR="1960"
 
-UQSTR="SAM0-UNICON"
-PARENTSTR="SNU"
-GRIDDATE="gn/v????????"
-STYR="1950"
+#UQSTR="SAM0-UNICON"
+#PARENTSTR="SNU"
+#GRIDDATE="gn/v????????"
+#STYR="1950"
+
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
 if [[ $HOSTNAME = cheyenne* ]]; then
   TEMPESTEXTREMESDIR=/glade/u/home/zarzycki/work/tempestextremes_noMPI/
   #TEMPESTEXTREMESDIR=/glade/u/home/ullrich/teold/tempestextremes_20200727_d988498/
-  PATHTOFILES=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/r1i1p1f1/6hrPlevPt/psl/${GRIDDATE}/psl/
-  PATHTOFILES2=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/r1i1p1f1/3hr/pr/${GRIDDATE}/pr/
+  PATHTOFILES=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/${ENSEMBLEMEMBER}/6hrPlevPt/psl/${GRIDDATE}/psl/
+  PATHTOFILES2=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/${ENSEMBLEMEMBER}/3hr/pr/${GRIDDATE}/pr/
   PATHTOFILES3=/glade/scratch/zarzycki/CMIPTMP/${UQSTR}/
   TOPOFILE=/glade/work/zarzycki/topo-files/CMIP6/${UQSTR}.topo.nc
   THISSED="sed"
@@ -82,7 +89,7 @@ starttime=$(date -u +"%s")
 
 DATESTRING=`date +"%s%N"`
 OUTTRAJDIR="./trajs/"
-TRAJFILENAME=${OUTTRAJDIR}/trajectories.txt.${UQSTR}
+TRAJFILENAME=${OUTTRAJDIR}/trajectories.txt.${ENSEMBLEMEMBER}.${UQSTR}
 FILELISTNAME=filelist.txt.${DATESTRING}
 NODELISTNAME=nodelist.txt.${DATESTRING}
 NODELISTNAMEFILT=nodelistfilt.txt.${DATESTRING}
@@ -122,7 +129,7 @@ if [ "$DO_TRACKS" = true ] ; then
   #SN_MAXTOPO=150.0   
   #SN_MINWIND=10.0
 
-  STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;${DCU_PSLNAME},min,0;PHIS,max,0"
+  STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;PHIS,max,0"
   echo $STRDETECT
   touch cyclones.${DATESTRING}
   ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list "${FILELISTNAME}" ${STRDETECT} </dev/null
@@ -138,14 +145,14 @@ if [ "$DO_TRACKS" = true ] ; then
 
   # Stitch candidate cyclones together
   STRSTITCH="--range ${SN_TRAERA5NGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
-  ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,slp,phis" ${STRSTITCH}
+  ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files
   rm cyclones.${DATESTRING}   #Delete candidate cyclone file
   rm ${FILELISTNAME}
   rm log*.txt
 
-  ${TEMPESTEXTREMESDIR}/bin/HistogramNodes --in ${TRAJFILENAME} --nlat 36 --nlon 72 --iloncol 3 --ilatcol 4 --out "${PATHTOFILES3}/density_${UQSTR}.nc"
+  ${TEMPESTEXTREMESDIR}/bin/HistogramNodes --in ${TRAJFILENAME} --nlat 36 --nlon 72 --iloncol 3 --ilatcol 4 --out "${PATHTOFILES3}/density_${ENSEMBLEMEMBER}_${UQSTR}.nc"
 fi
 
 ############ FIELD EXTRACTION #####################
@@ -155,7 +162,7 @@ if [ "$DO_EXTRACT" = true ] ; then
 
   touch $NODELISTNAME
 
-  find ${PATHTOFILES2} -name "pr_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n >> $NODELISTNAME
+  find ${PATHTOFILES2} -name "pr_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*.nc" | sort -n >> $NODELISTNAME
 
   ## Create files and folder to hold filtered data
   cp $NODELISTNAME $NODELISTNAMEFILT
@@ -163,33 +170,33 @@ if [ "$DO_EXTRACT" = true ] ; then
   $THISSED -i 's?'${PATHTOFILES2//\?/\.}'?'${PATHTOFILES3}'?g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
 
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
 
-   TASFILES=`find ${PATHTOFILES2//pr/tas} -name "tas_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n`
-   for f in $TASFILES; do
-     echo "Appending... $f"
-     # Find matching *FILT* file with last 15 characters (date and nc)
-     THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
-     # Append snow to FILT file
-     ncks -A -v tas $f $THISPRECFILE
-     # Use mask var to mask off non-cyclone
-     ncap2 -O -s 'where(mask!=1) tas=0.0' $THISPRECFILE $THISPRECFILE
-   done
+#    TASFILES=`find ${PATHTOFILES2//pr/tas} -name "tas_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*.nc" | sort -n`
+#    for f in $TASFILES; do
+#      ## Find matching *FILT* file with last 15 characters (date and nc)
+#      THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
+#      echo "Appending... $f to $THISPRECFILE"
+#      ## Append snow to FILT file
+#      ncks -A -v tas $f $THISPRECFILE
+#      ## Use mask var to mask off non-cyclone
+#      ncap2 -O -s 'where(mask!=1) tas=0.0' $THISPRECFILE $THISPRECFILE
+#    done
 
-   SNOWFILES=`find ${PATHTOFILES2//pr/prsn} -name "prsn_3hr_${UQSTR}_historical_r1i1p1f1*.nc" | sort -n`
+   SNOWFILES=`find ${PATHTOFILES2//pr/prsn} -name "prsn_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*.nc" | sort -n`
    for f in $SNOWFILES; do
-     echo "Appending... $f"
-     # Find matching *FILT* file with last 15 characters (date and nc)
+     ## Find matching *FILT* file with last 15 characters (date and nc)
      THISPRECFILE=`ls ${PATHTOFILES3}/*FILT*${f:(-15)}`
-     # Append snow to FILT file
+     echo "Appending... $f to $THISPRECFILE"
+     ## Append snow to FILT file
      ncks -A -v prsn $f $THISPRECFILE
-     # Use mask var to mask off non-cyclone
+     ## Use mask var to mask off non-cyclone
      ncap2 -O -s 'where(mask!=1) prsn=0.0' $THISPRECFILE $THISPRECFILE
    done
 
-  pattern=${PATHTOFILES3}"/pr_FILT_3hr_${UQSTR}_historical_r1i1p1f1*nc"
+  pattern=${PATHTOFILES3}"/pr_FILT_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*nc"
   dumfiles=( $pattern )
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,slp,phis" --colfilter "slp,<=,97000."
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,phis" --colfilter "slp,<=,99000."
 
 ### KEEP COMMENTED
 # in hypothetical world, where flatten time would go
@@ -199,7 +206,7 @@ if [ "$DO_EXTRACT" = true ] ; then
 #    ncl flatten-time.ncl 'filename="'${f}'"'
 #  done
 
-  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr" --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
+  ${TEMPESTEXTREMESDIR}/bin/NodeFileCompose --in_nodefile ${TRAJFILENAME}_strong.txt --in_fmt "lon,lat,slp,phis" --in_data_list "${NODELISTNAMEFILT}" --var "pr" --max_time_delta "2h" --out_data "${PATHTOFILES3}/composite_${ENSEMBLEMEMBER}_${UQSTR}.nc" --dx 1.0 --resx 80 --op "mean" --snapshots
   
   # Clean up
   rm ${NODELISTNAME}

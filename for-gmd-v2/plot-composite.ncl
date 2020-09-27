@@ -1,5 +1,5 @@
 filename = "composite_CESM1-LENS.nc"
-varname="PRECT"
+varname="QREFHT"
 f     = addfile(filename,"r")
 var = f->$varname$
 var!0="lat"
