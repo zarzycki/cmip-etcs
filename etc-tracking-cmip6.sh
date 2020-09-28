@@ -5,7 +5,7 @@
 ## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
 DO_TRACKS=true
-DO_EXTRACT=true
+DO_EXTRACT=false
 ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 
 ## Unique string
@@ -15,10 +15,10 @@ ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 #GRIDDATE="gr1/v20180701"
 #STYR="1960"
 
-#UQSTR="GISS-E2-1-G"
-#PARENTSTR="NASA-GISS"
-#GRIDDATE="gn/v????????"
-#STYR="-1"
+UQSTR="GISS-E2-1-G"
+PARENTSTR="NASA-GISS"
+GRIDDATE="gn/v????????"
+STYR="-1"
 
 #UQSTR="MPI-ESM1-2-LR"
 #PARENTSTR="MPI-M"
@@ -36,10 +36,10 @@ ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 #GRIDDATE="gn/v????????"
 #STYR="1960"
 
-UQSTR="MIROC6"
-PARENTSTR="MIROC"
-GRIDDATE="gn/v????????"
-STYR="-1"
+#UQSTR="MIROC6"
+#PARENTSTR="MIROC"
+#GRIDDATE="gn/v????????"
+#STYR="-1"
 
 #UQSTR="MRI-ESM2-0"
 #PARENTSTR="MRI"
@@ -79,6 +79,12 @@ elif [[ $(hostname -s) = MET-MAC* ]]; then
   PATHTOFILES=/Users/cmz5202/NetCDF/CMIP6/
   TOPOFILE=/Users/cmz5202/NetCDF/topo_files/${UQSTR}.topo.nc
   THISSED="gsed"
+elif [[ $(hostname -s) = aci* ]]; then
+  TEMPESTEXTREMESDIR=/storage/home/cmz5202/sw/tempestextremes/
+  PATHTOFILES=/gpfs/group/cmz5202/default/mjg6459/CMIP6/${PARENTSTR}/${UQSTR}/psl/
+  PATHTOFILES3=/storage/home/cmz5202/scratch/CMIPTMP/${UQSTR}/
+  TOPOFILE=/gpfs/group/cmz5202/default/topo/${UQSTR}.topo.nc
+  THISSED="sed"
 else
   echo "Can't figure out hostname, exiting"
   exit
@@ -93,6 +99,10 @@ TRAJFILENAME=${OUTTRAJDIR}/trajectories.txt.${ENSEMBLEMEMBER}.${UQSTR}
 FILELISTNAME=filelist.txt.${DATESTRING}
 NODELISTNAME=nodelist.txt.${DATESTRING}
 NODELISTNAMEFILT=nodelistfilt.txt.${DATESTRING}
+
+########### SET UP FOLDERS #####################
+
+mkdir -p ${PATHTOFILES3}
 
 ############ TRACK ETCs #####################
 
@@ -109,7 +119,7 @@ if [ "$DO_TRACKS" = true ] ; then
   $THISSED -e 's?$?;'"${TOPOFILE}"'?' -i $FILELISTNAME
   cat $FILELISTNAME
 
-  # Check if topo file exists, if not generate one using the first PSL file
+  ## Check if topo file exists, if not generate one using the first PSL file
   if [ ! -f ${TOPOFILE} ]; then
     echo "Topo file ${TOPOFILE} not found!"
     FIRSTPSLFILE=$(echo $(head -n 1 ${FILELISTNAME}) | awk -F';' '{print $1}')
