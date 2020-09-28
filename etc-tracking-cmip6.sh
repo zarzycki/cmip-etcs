@@ -15,10 +15,10 @@ ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 #GRIDDATE="gr1/v20180701"
 #STYR="1960"
 
-UQSTR="GISS-E2-1-G"
-PARENTSTR="NASA-GISS"
-GRIDDATE="gn/v????????"
-STYR="-1"
+#UQSTR="GISS-E2-1-G"
+#PARENTSTR="NASA-GISS"
+#GRIDDATE="gn/v????????"
+#STYR="-1"
 
 #UQSTR="MPI-ESM1-2-LR"
 #PARENTSTR="MPI-M"
@@ -63,12 +63,20 @@ STYR="-1"
 #GRIDDATE="gn/v????????"
 #STYR="1950"
 
+#UQSTR="NorESM2-LM"
+#PARENTSTR="NCC"
+#GRIDDATE="gn/v????????"
+#STYR="-1"
+
+UQSTR="AWI-ESM-1-1-LR"
+PARENTSTR="AWI"
+GRIDDATE="gn/v????????"
+STYR="-1"
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
 if [[ $HOSTNAME = cheyenne* ]]; then
   TEMPESTEXTREMESDIR=/glade/u/home/zarzycki/work/tempestextremes_noMPI/
-  #TEMPESTEXTREMESDIR=/glade/u/home/ullrich/teold/tempestextremes_20200727_d988498/
   PATHTOFILES=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/${ENSEMBLEMEMBER}/6hrPlevPt/psl/${GRIDDATE}/psl/
   PATHTOFILES2=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/${ENSEMBLEMEMBER}/3hr/pr/${GRIDDATE}/pr/
   PATHTOFILES3=/glade/scratch/zarzycki/CMIPTMP/${UQSTR}/
@@ -84,6 +92,7 @@ elif [[ $(hostname -s) = aci* ]]; then
   PATHTOFILES=/gpfs/group/cmz5202/default/mjg6459/CMIP6/${PARENTSTR}/${UQSTR}/psl/
   PATHTOFILES3=/storage/home/cmz5202/scratch/CMIPTMP/${UQSTR}/
   TOPOFILE=/gpfs/group/cmz5202/default/topo/${UQSTR}.topo.nc
+  TOPOORIGDIR=/storage/home/cmz5202/work/cam_tools/hires-topo/
   THISSED="sed"
 else
   echo "Can't figure out hostname, exiting"
@@ -123,6 +132,7 @@ if [ "$DO_TRACKS" = true ] ; then
   if [ ! -f ${TOPOFILE} ]; then
     echo "Topo file ${TOPOFILE} not found!"
     FIRSTPSLFILE=$(echo $(head -n 1 ${FILELISTNAME}) | awk -F';' '{print $1}')
+    export TOPOORIGDIR="${TOPOORIGDIR}"  # Send topo dir to shell var for use inside NCL
     ncl data-process/make_topo_file.ncl 'trackerFileName="'$FIRSTPSLFILE'"' 'outFileName="'${TOPOFILE}'"'
   else
     echo "Topo file ${TOPOFILE} already exists."
@@ -135,9 +145,6 @@ if [ "$DO_TRACKS" = true ] ; then
   SN_TRAERA5NGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
   SN_TRAJMINLENGTH=10  # Min length of trajectory (nsteps)
   SN_TRAJMAXGAP=3      # Max gap within a trajectory (nsteps)
-  # used for TCs, not ETCs (right now)
-  #SN_MAXTOPO=150.0   
-  #SN_MINWIND=10.0
 
   STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;PHIS,max,0"
   echo $STRDETECT

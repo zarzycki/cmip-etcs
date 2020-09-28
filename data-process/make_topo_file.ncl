@@ -8,7 +8,6 @@ load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/contributed.ncl"
 ;========================================================
 begin
 
-whatData="MRI-ESM2-0"
 write_output=True
 isglobal=True
 isStoN=False
@@ -16,7 +15,10 @@ keepStoN=False
 
 ;  doLonShift=True
 doLonShift=False ; True for MERRA, False for JRA
-topoFileName="/glade/work/zarzycki/cam_tools/hires-topo/2deg_cesm_topo_latlon.nc"
+
+topoDir = getenv("TOPOORIGDIR")
+print("TopoDir is: "+topoDir)
+topoFileName=topoDir+"/2deg_cesm_topo_latlon.nc"
 ;outFileName = whatData+".topo.nc"
 
 ;trackerFileName="/glade/collections/cmip/CMIP6/CMIP/MRI/MRI-ESM2-0/historical/r1i1p1f1/6hrPlevPt/psl/gn/v20190722/psl/psl_6hrPlevPt_MRI-ESM2-0_historical_r1i1p1f1_gn_195001010000-195912311800.nc"
