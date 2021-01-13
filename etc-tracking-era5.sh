@@ -4,8 +4,8 @@
 
 ## If using unstructured data, need connect file, otherwise empty
 CONNECTFLAG="" 
-DO_TRACKS=false
-DO_EXTRACT=true
+DO_TRACKS=true
+DO_EXTRACT=false
 UQSTR=ERA5
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
