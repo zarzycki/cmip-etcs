@@ -142,10 +142,12 @@ if [ "$DO_TRACKS" = true ] ; then
   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
   DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
-  SN_TRAERA5NGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
+  SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
   SN_TRAJMINLENGTH=10  # Min length of trajectory (nsteps)
   SN_TRAJMAXGAP=3      # Max gap within a trajectory (nsteps)
-
+  SN_MINENDPOINT=12.0  # Min travel distance
+  SN_MINTIME="60h"
+  
   STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;PHIS,max,0"
   echo $STRDETECT
   touch cyclones.${DATESTRING}
@@ -161,7 +163,7 @@ if [ "$DO_TRACKS" = true ] ; then
   fi;
 
   # Stitch candidate cyclones together
-  STRSTITCH="--range ${SN_TRAERA5NGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  STRSTITCH="--range ${SN_TRAJRANGE} --mintime ${SN_MINTIME} --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist ${SN_MINENDPOINT} --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
   ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files
