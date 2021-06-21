@@ -15,7 +15,7 @@ DO_TRACKS=true
 DO_EXTRACT=false
 ENSEMBLEMEMBER=r1i1p1f1
 
-UQSTR="CR20"
+UQSTR="ERA5"
 PARENTSTR=""
 GRIDDATE=""
 STYR="-1"
@@ -74,9 +74,9 @@ if [ "$DO_TRACKS" = true ] ; then
     echo "Topo file ${TOPOFILE} already exists."
   fi
 
-#   DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
-#   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
-#   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
+   DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
+   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
+   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
 #   DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
 #   SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
 #   SN_TRAJMINLENGTH=10  # Min length of trajectory (nsteps)
@@ -84,16 +84,26 @@ if [ "$DO_TRACKS" = true ] ; then
 #   SN_MINENDPOINT=12.0  # Min travel distance
 #   SN_MINTIME="60h"
 
-  DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
-  DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
-  DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
-  DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
-  SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
+#  DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
+#  DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
+#  DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
+#  DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
+#  SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
+#  SN_TRAJMINLENGTH=4  # Min length of trajectory (nsteps)
+#  SN_TRAJMAXGAP=1      # Max gap within a trajectory (nsteps)
+#  SN_MINENDPOINT=9.01  # Min travel distance
+#  SN_MINTIME="24h"
+
+#  DCU_PSLNAME="PSL"    # Name of PSL on netcdf files
+#  DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
+#  DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
+  DCU_MERGEDIST=9.01   # Merge two competing PSL minima within this radius
+  SN_TRAJRANGE=9.01   # Maximum distance (GC degrees) ETC can move in successive steps
   SN_TRAJMINLENGTH=4  # Min length of trajectory (nsteps)
   SN_TRAJMAXGAP=1      # Max gap within a trajectory (nsteps)
-  SN_MINENDPOINT=9.01  # Min travel distance
+  SN_MINENDPOINT=12.0  # Min travel distance
   SN_MINTIME="24h"
-  
+
   STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;PHIS,max,0"
   echo $STRDETECT
   touch cyclones.${DATESTRING}
@@ -109,7 +119,8 @@ if [ "$DO_TRACKS" = true ] ; then
   fi;
 
   # Stitch candidate cyclones together
-  STRSTITCH="--range ${SN_TRAJRANGE} --mintime ${SN_MINTIME} --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist ${SN_MINENDPOINT} --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  #STRSTITCH="--range ${SN_TRAJRANGE} --mintime ${SN_MINTIME} --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist ${SN_MINENDPOINT} --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  STRSTITCH="--range ${SN_TRAJRANGE} --mintime ${SN_MINTIME} --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist ${SN_MINENDPOINT}"
   ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files

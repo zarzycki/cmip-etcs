@@ -9,7 +9,7 @@ UQSTR=ERAI-PVAR
 
 ############ MACHINE SPECIFIC AUTO-CONFIG #####################
 
-TEMPESTEXTREMESDIR=/glade/u/home/zarzycki/work/tempestextremes/
+TEMPESTEXTREMESDIR=/glade/u/home/zarzycki/work/tempestextremes_noMPI/
 PATHTOFILES=/glade/scratch/zarzycki/erain/
 THISSED="sed"
 
@@ -51,7 +51,8 @@ if [ "$DO_TRACKS" = true ] ; then
   STRDETECT="--verbosity 0 --timestride 1 --latname lat --lonname lon --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbythreshold >0 --searchbymax ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},max,0"
   echo $STRDETECT
   touch cyclones.${DATESTRING}
-  mpiexec_mpt ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list "${FILELISTNAME}" ${STRDETECT} </dev/null
+  ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list "${FILELISTNAME}" ${STRDETECT} </dev/null
+  #mpiexec_mpt ${TEMPESTEXTREMESDIR}/bin/DetectNodes --in_data_list "${FILELISTNAME}" ${STRDETECT} </dev/null
 
   cat cyclones_tempest.${DATESTRING}* >> cyclones.${DATESTRING}
   rm cyclones_tempest.${DATESTRING}*

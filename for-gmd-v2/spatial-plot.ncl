@@ -1,7 +1,7 @@
-load "~/sw/coastal-storm-metrics/ncl/functions/getTrajectoriesGeneric.ncl"
-load "~/sw/coastal-storm-metrics/ncl/functions/trackDensity.ncl"
+load "~/Software/cymep/ncl/functions/getTrajectoriesGeneric.ncl"
+load "~/Software/cymep/ncl/functions/trackDensity.ncl"
 
-thefile="etc-strong-traj.txt"
+thefile="etc-all-traj.txt"
 ncols = -1 ; number of columns in non-header rows of trajectory file
 maxLines = -1  ; set to -1 for auto-detection
 traj_data = getTrajectoriesGeneric(thefile,ncols,maxLines,"start","tab",False,False)
@@ -58,9 +58,32 @@ end if
   res@mpOceanFillColor       = "slategray3"
   res@mpInlandWaterFillColor = "slategray3"
   res@mpGeophysicalLineThicknessF = 2.0
-
-
+  
   plot = gsn_csm_contour_map_ce(wks,trackdens,res)
+
+  
+
+;---Create some text strings to attach outside of plot.
+  text_str = "6-hr ETC fix per 5~S~o~N~x5~S~o~N~ box per yr."
+
+  txres               = True
+  txres@txFontHeightF = 0.011
+  txres@txAngleF      = 0     ; Rotate 90 degrees
+
+  txid1 = gsn_create_text(wks,text_str,txres)
+
+;----------------------------------------------------------------------
+; Use gsn_add_annotation to attach text string to outside of plot. 
+; This is useful if you need to resize the plot later, like in
+; a panel plot.
+;----------------------------------------------------------------------
+  amres                  = True
+  amres@amJust           = "CenterCenter"  ; Center string
+  amres@amParallelPosF   =  0.0          ; -0.5 - 0 - 0.5 from L -> R
+  amres@amOrthogonalPosF =  0.60          ; Move to center (in Y direction)
+  annoid1 = gsn_add_annotation(plot, txid1, amres)
+
+;drawNDCGrid(wks)
 
 draw(plot)
 frame(wks)
