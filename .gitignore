@@ -1,3 +1,4 @@
+calpreciptype.*so
 trajs/
 !composite_CESM1-LENS.nc
 tempest.par.o*
