@@ -24,7 +24,17 @@ def np_ffill(arr, axis):
     slc[axis] = idx
     return arr[tuple(slc)]
 
-@numba.jit
+### This function calculates ptype based on bourgoin
+# ptype = ntim x nlat   x nlon
+# T     = ntim x nlev   x nlat x nlon
+# Q     = ntim x nlat   x nlon
+# pmid  = ntim x nlev   x nlat x nlon 
+# pint  = ntim x nlev+1 x nlat x nlon
+# zint2 = ntim x nlev+1 x nlat x nlon
+# ntim (int)
+# nlon (int)
+# nlat (int)
+#@numba.jit
 def calc_ptype(ptype,T,Q,pmid,pint,zint2,ntim,nlon,nlat):
   grav=9.80665
 
@@ -35,10 +45,11 @@ def calc_ptype(ptype,T,Q,pmid,pint,zint2,ntim,nlon,nlat):
   
   return ptype 
 
-@numba.jit
+### This function calculates geopotential height on interface levels
+### Requires variables be organized bottom to top!
+### if doFlip = True, this means all variables are top to bottom
+#@numba.jit
 def calc_zint(pint,PHIS,TKV,p1dims,ntim,nlevp1,doFlip=False):
-
-  # doFlip flips ordering
 
   grav=9.80665
   rog=287.04/grav
@@ -51,7 +62,7 @@ def calc_zint(pint,PHIS,TKV,p1dims,ntim,nlevp1,doFlip=False):
   if doFlip:
     for zz in range(ntim):
       zint[zz,0,:,:] = PHIS/grav
-      for kk in range(nlevp1-1):
+      for kk in tqdm(range(nlevp1-1)):
         kkf = nlevp1-kk-1
         zint[zz,kk+1,:,:] = zint[zz,kk,:,:] + rog * TKV[zz,kkf-1,:,:] * np.log(pint[zz,kkf,:,:]/pint[zz,kkf-1,:,:])
     
@@ -62,12 +73,10 @@ def calc_zint(pint,PHIS,TKV,p1dims,ntim,nlevp1,doFlip=False):
   else:
     for zz in range(ntim):
       zint[zz,0,:,:] = PHIS/grav
-      for kk in range(nlevp1-1):
+      for kk in tqdm(range(nlevp1-1)):
         zint[zz,kk+1,:,:] = zint[zz,kk,:,:] + rog * TKV[zz,kk,:,:] * np.log(pint[zz,kk,:,:]/pint[zz,kk+1,:,:])
 
   return zint
-
-
 
 
 #python -m numpy.f2py --opt='-O3' -c calpreciptype.f90 -m calpreciptype
@@ -112,16 +121,19 @@ LOOPIX=FINIX-STAIX
 ### Set formatted date for output
 formattedDate = timeArr.dt.strftime('%Y%m%d%H')
 
+### Get Temperature
 print("Getting T")
 T = ds.T[STAIX:FINIX,:,::stride,::stride]
 T = T.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
 T.load()
 ds.close()
 
-# Do some coordinate stuff with T
+# Get time-lev-lat-lon coords
+# ... and time-lat-lon coords
 TLLLcoords = T.coords
 TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
 
+### Get specific humidity
 print("Getting Q")
 fname="/glade/u/home/zarzycki/rda/ds633.0/e5.oper.an.pl/201301/e5.oper.an.pl.128_133_q.ll025sc.2013010100_2013010123.nc"
 ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
@@ -130,8 +142,12 @@ Q = Q.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
 Q.load()
 ds.close()
 
-print("Getting PS")
+### Get pressure
+## if we have model P or constant P, we can just load them here...
+
+
 ## This handles model level data by reading PS and "building" p at model levels
+print("Getting PS")
 fname  = "/glade/u/home/zarzycki/rda/ds633.0/e5.oper.an.sfc/201301/e5.oper.an.sfc.128_134_sp.ll025sc.2013010100_2013013123.nc"
 ds = xr.open_mfdataset(fname, combine='by_coords')
 PS=ds.SP[STAIX:FINIX,::stride,::stride]
@@ -272,7 +288,7 @@ MyWho()
 #>> zint = zint[:,::-1,:,:]
 
 ### ZINT function
-zint = calc_zint(pint,PHIS,TKV,p1dims,LOOPIX,nlevp1,doFlip=True)
+zint = calc_zint(pint.values,PHIS.values,TKV.values,p1dims,LOOPIX,nlevp1,doFlip=True)
 #>>>
 # Built xr DataArray
 zint2 = xr.DataArray(np.asarray(zint), dims=('time', 'ilev', 'lat', 'lon'), coords={'time': T.coords['time'], 'ilev' : pint[0,:,0,0] , 'lat': T.coords['lat'], 'lon': T.coords['lon']})
