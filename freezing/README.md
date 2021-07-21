@@ -1,15 +1,16 @@
-# Precipitation typing!
+# Precipitation typing for climate data
 
 Prerequisites:
 
 - numpy
 - xarray
 - metpy
-- tqdm
+- tqdm (this is used for timing loops and is optional scientifically, although code will need to be cleaned of its calls)
 - calpreciptype (**See below!**)
 
+The first four can be installed with `conda install` or `pip`. The last one comes with this repo.
 
-### Workflow
+## Workflow
 
 This code leans quite heavily on both xarray and numpy, with metpy used to do some thermodynamic calculations. I could probably generalize a bit more beyond xarray but eh.
 
@@ -19,11 +20,36 @@ This code leans quite heavily on both xarray and numpy, with metpy used to do so
 2. Calculate **pmid** and **pint**.
 	- If the data is on *constant pressure* surfaces, use the `constant_press_prep` function to process.
 	- If the data is on *model* surfaces, pmid and pint need to be defined. This is probably via the use of a hybrid calculation (e.g., P(z,i,j) = a(k)\*P0 + b(k)\*PS(i,j)) but for other models a 4-D (ntime, nlev, nlat, nlon) pressure array may be provided.
-3. Run `calc_ptype` wrapper.
+3. Run `calc_ptype` wrapper with **T**, **Q**, **pmid**, **pint** as inputs (plus some integers describing array sizes).
 
 Some important notes:
 
+- One should be able to reproduce ptypes from dev by checking out the repo and setting `dataset = "ERA5"` (constant pressure surfaces) or `dataset = "LENS"` (model surfaces).
 - All arrays should be ordered **top-to-bottom**! These can be flipped in step 1 by using the ::-1 convention.
+- For *constant pressure* surfaces, it is unclear what resolution is needed for accurate typing. ERA5 has been tested with deltaP of 25mb in the lower troposphere, 50mb in the mid-troposphere, and 100mb in the upper troposphere to stratosphere with decent results (i.e., freezing rain shows up spatially where historical events occurred). Gut tells me we need >10 levels in the troposphere, but we may want to do some stride tests with reference data!
+- For *constant pressure* surfaces, if we have high resolution **T** (vertically) but low resolution **Q**, it seems reasonable to interpolate Q vertically to T given that the algos are more sensitive to the former variable *and* **Q** can be interpolated using a log formulation given C-C scaling. 
+
+---
+
+### calc_ptype
+
+This function uses three different algorithms from NCEP and chooses either A) the dominant ptype where 2 or 3 algos agree. If *no* algorithms agree, chooses Bourgouin for consistency with Zarzycki (2018).
+
+The inputs to `calc_ptype` are below... one note, setting zint = -1 (negative integer) will cause the code to call `calc_zint` which uses the hypsometric relationship to build interface heights iteratively from the surface. Technically, one could use an actual interface height variable from a model, but for comparison purposes, it may make sense to just internally calculate for everything to be apples-to-appples.
+
+Reminder, **top-to-bottom**!!
+
+```
+# T (ntim,nlev,nlat,nlon) in K
+# Q (ntim,nlev,nlat,nlon) in kg/kg
+# pmid (ntim,nlev,nlat,nlon) in Pa
+# pint (ntim,nlev+1,nlat,nlon) in Pa
+# zint (ntim,nlev+1,nlat,nlon) in m
+# ntim (int)
+# nlev (int)
+# nlon (int)
+# nlat (int)
+```
 
 ### calpreciptype
 

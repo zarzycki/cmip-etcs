@@ -225,6 +225,8 @@ def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     # Return xarray DataArrays for T, Q, pmid, and pint to main function
     return T, Q, pmid, pint
 
+### MAIN PROGRAM BEGINS HERE!
+
 dataset = "LENS"
 print("dataset "+dataset)
 
