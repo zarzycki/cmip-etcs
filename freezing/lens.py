@@ -5,7 +5,7 @@ import metpy.calc as mpcalc
 from metpy.units import units
 import calpreciptype
 from tqdm import tqdm
-import numba
+#import numba
 
 ### This function calculates ptype based on bourgoin
 # ptype = ntim x nlat   x nlon
@@ -69,11 +69,11 @@ pint.name="PINT"
 pint.attrs['units'] = 'Pa'
 pint = pint.transpose('time', 'ilev', 'lat', 'lon')
 
-rh = mpcalc.relative_humidity_from_specific_humidity(Q, T, pmid)
+rh = mpcalc.relative_humidity_from_specific_humidity(pmid, T, Q)
 rharr = xr.DataArray(np.asarray(rh), dims=('time', 'lev', 'lat', 'lon'), coords=Q.coords)
 rharr.name="RH"
 
-td = mpcalc.dewpoint_from_specific_humidity(Q, T, pmid).to('K')
+td = mpcalc.dewpoint_from_specific_humidity(pmid, T, Q).metpy.convert_units('K')
 tdarr = xr.DataArray(np.asarray(td), dims=('time', 'lev', 'lat', 'lon'), coords=Q.coords)
 tdarr.name="TD"
 tdarr.attrs['units'] = 'K'
@@ -102,7 +102,8 @@ testarr = np.array(tq)
 print(type(tq))
 
 #zint2 = calc_zint(pint.values,PHIS.values,TKV.values,p1dims,LOOPIX,nlevp1,doFlip=True)
-zint2 = mpcalc.pressure_to_height_std(pint).to('m')
+zint2 = mpcalc.pressure_to_height_std(pint).metpy.convert_units('m')
+zint2.values = zint2.values
 
 calc_ptype(ptypeb.values,T.values,Q.values,pmid.values,pint.values,zint2,T.sizes['time'],T.sizes['lon'],T.sizes['lat'])
 

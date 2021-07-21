@@ -515,10 +515,10 @@
 !gsm   type from the ramer in this situation and allow the
 !gsm   other algorithms to make the call.
       
-           !ptyp = 0       !  don't know 
-           ptyp = 5       !  mix
+           ptyp = 2       !  don't know 
+           !ptyp = 5       !  mix
         else
-           ptyp = 5       !  mix
+           ptyp = 2       !  mix
            !ptyp = 0       !  don't know 
         end if
       end if
@@ -746,14 +746,14 @@
            ptype = 8
         else                        ! transition zone, assume equally likely rain/snow
                                     ! picking a random number, if <=0.5 snow
-           !r1 = rn(1)
-           !if (r1 <= 0.5) then !                 snow = 1
-           !   ptype = 1
-           !else                !                 rain = 8
-           !   ptype = 8
-           !end if
+           r1 = rn(1)
+           if (r1 <= 0.5) then !                 snow = 1
+              ptype = 1
+           else                !                 rain = 8
+              ptype = 8
+           end if
            ! CMZ mix
-           ptype = 5
+           !ptype = 5
         end if
 !
       else !   some positive energy aloft, check for enough negative energy
