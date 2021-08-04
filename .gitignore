@@ -1,3 +1,11 @@
+!freezing/sample-LENS/*nc
+*.ipynb
+.ipynb_checkpoints
+.DS_Store
+calpreciptype.*so
+trajs/
+!composite_CESM1-LENS.nc
+tempest.par.o*
 *list.txt
 *-traj.txt
 *pdf

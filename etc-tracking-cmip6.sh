@@ -58,10 +58,10 @@ ENSEMBLEMEMBER=r1i1p1f1   #r1, r2, etc.
 #GRIDDATE="gn/v????????"
 #STYR="1960"
 
-#UQSTR="SAM0-UNICON"
-#PARENTSTR="SNU"
-#GRIDDATE="gn/v????????"
-#STYR="1950"
+UQSTR="SAM0-UNICON"
+PARENTSTR="SNU"
+GRIDDATE="gn/v????????"
+STYR="1950"
 
 #UQSTR="NorESM2-LM"
 #PARENTSTR="NCC"
@@ -143,10 +143,12 @@ if [ "$DO_TRACKS" = true ] ; then
   DCU_PSLFOMAG=200.0   # Pressure "anomaly" required for PSL min to be kept
   DCU_PSLFODIST=6.0    # Pressure "anomaly" contour must lie within this distance
   DCU_MERGEDIST=6.0    # Merge two competing PSL minima within this radius
-  SN_TRAERA5NGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
+  SN_TRAJRANGE=6.0     # Maximum distance (GC degrees) ETC can move in successive steps
   SN_TRAJMINLENGTH=10  # Min length of trajectory (nsteps)
   SN_TRAJMAXGAP=3      # Max gap within a trajectory (nsteps)
-
+  SN_MINENDPOINT=12.0  # Min travel distance
+  SN_MINTIME="60h"
+  
   STRDETECT="--verbosity 0 --timestride 1 ${CONNECTFLAG} --out cyclones_tempest.${DATESTRING} --closedcontourcmd ${DCU_PSLNAME},${DCU_PSLFOMAG},${DCU_PSLFODIST},0 --mergedist ${DCU_MERGEDIST} --searchbymin ${DCU_PSLNAME} --outputcmd ${DCU_PSLNAME},min,0;PHIS,max,0"
   echo $STRDETECT
   touch cyclones.${DATESTRING}
@@ -162,7 +164,7 @@ if [ "$DO_TRACKS" = true ] ; then
   fi;
 
   # Stitch candidate cyclones together
-  STRSTITCH="--range ${SN_TRAERA5NGE} --mintime 60h --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist 12.0 --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
+  STRSTITCH="--range ${SN_TRAJRANGE} --mintime ${SN_MINTIME} --minlength ${SN_TRAJMINLENGTH} --maxgap ${SN_TRAJMAXGAP} --in cyclones.${DATESTRING} --out ${TRAJFILENAME} --min_endpoint_dist ${SN_MINENDPOINT} --threshold lat,>,24,1;lon,>,234,1;lat,<,52,1;lon,<,294,1"
   ${TEMPESTEXTREMESDIR}/bin/StitchNodes --in_fmt "lon,lat,slp,phis" ${STRSTITCH}
 
   # Clean up leftover files
@@ -188,6 +190,7 @@ if [ "$DO_EXTRACT" = true ] ; then
   $THISSED -i 's?'${PATHTOFILES2//\?/\.}'?'${PATHTOFILES3}'?g' $NODELISTNAMEFILT
   mkdir -p ${PATHTOFILES3}
 
+  # Copies precip files from CMIP, masks out precip tagged to an ETC that was tracked above.
   ${TEMPESTEXTREMESDIR}/bin/NodeFileFilter --in_nodefile ${TRAJFILENAME} --in_fmt "lon,lat,slp,phis" --in_data_list ${NODELISTNAME} --out_data_list ${NODELISTNAMEFILT} --var "pr" --bydist 25.0 --maskvar "mask" #  --nearbyblobs "pr,2.0,>=,5.0e-5,50.0"     pr is kg/m2/s so pr/1000 => m/s
 
 #    TASFILES=`find ${PATHTOFILES2//pr/tas} -name "tas_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*.nc" | sort -n`
@@ -201,6 +204,7 @@ if [ "$DO_EXTRACT" = true ] ; then
 #      ncap2 -O -s 'where(mask!=1) tas=0.0' $THISPRECFILE $THISPRECFILE
 #    done
 
+   # Use mask from above to also filter snowfall in addition to precip.
    SNOWFILES=`find ${PATHTOFILES2//pr/prsn} -name "prsn_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*.nc" | sort -n`
    for f in $SNOWFILES; do
      ## Find matching *FILT* file with last 15 characters (date and nc)
@@ -212,9 +216,13 @@ if [ "$DO_EXTRACT" = true ] ; then
      ncap2 -O -s 'where(mask!=1) prsn=0.0' $THISPRECFILE $THISPRECFILE
    done
 
+  # Filter new traj file by only <990mb ETCs
   pattern=${PATHTOFILES3}"/pr_FILT_3hr_${UQSTR}_historical_${ENSEMBLEMEMBER}*nc"
   dumfiles=( $pattern )
   ${TEMPESTEXTREMESDIR}/bin/NodeFileEditor --in_nodefile ${TRAJFILENAME} --in_data ${dumfiles[0]} --in_fmt "lon,lat,slp,phis" --out_nodefile ${TRAJFILENAME}_strong.txt --out_fmt "lon,lat,slp,phis" --colfilter "slp,<=,99000."
+
+  # Only include midwest ETCs
+  #line of code to filter midwest ETCs -> write midwest_etc_traj.txt
 
 ### KEEP COMMENTED
 # in hypothetical world, where flatten time would go
