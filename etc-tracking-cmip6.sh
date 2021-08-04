@@ -90,7 +90,7 @@ elif [[ $(hostname -s) = MET-MAC* ]]; then
 elif [[ $(hostname -s) = aci* ]]; then
   TEMPESTEXTREMESDIR=/storage/home/cmz5202/sw/tempestextremes/
   PATHTOFILES=/gpfs/group/cmz5202/default/mjg6459/CMIP6/${PARENTSTR}/${UQSTR}/psl/
-  PATHTOFILES3=/storage/home/cmz5202/scratch/CMIPTMP/${UQSTR}/
+  PATHTOFILES3=/storage/home/${LOGNAME}/scratch/CMIPTMP/${UQSTR}/
   TOPOFILE=/gpfs/group/cmz5202/default/topo/${UQSTR}.topo.nc
   TOPOORIGDIR=/storage/home/cmz5202/work/cam_tools/hires-topo/
   THISSED="sed"
@@ -112,6 +112,7 @@ NODELISTNAMEFILT=nodelistfilt.txt.${DATESTRING}
 ########### SET UP FOLDERS #####################
 
 mkdir -p ${PATHTOFILES3}
+mkdir -p $(dirname "${TOPOFILE}")
 
 ############ TRACK ETCs #####################
 
