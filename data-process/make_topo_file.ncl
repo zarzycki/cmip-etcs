@@ -28,11 +28,12 @@ topoFileName=topoDir+"/2deg_cesm_topo_latlon.nc"
 ;trackerFileName="/glade/u/home/zarzycki/scratch/ERA5/CAT.ERA5.U850.201701.nc"
 
 topoFile=addfile(topoFileName,"r")
-topoLat=topoFile->lat
-topoLon=topoFile->lon
-topoTopo=topoFile->PHIS
+stride=64
+topoLat=topoFile->lat(::stride)
+topoLon=topoFile->lon(::stride)
+topoTopo=topoFile->PHIS(::stride,::stride)
 ;topoTopo=topoTopo/9.81
-printVarSummary(topoTopo)
+print(topoLat)
 
 if(doLonShift) then
   topoTopoShift=lonFlip(topoTopo)
@@ -42,16 +43,30 @@ if(doLonShift) then
 end if
 
 trackerFile=addfile(trackerFileName,"r")
-trackerLat=trackerFile->lat
-if (isStoN) then
-  trackerLat = trackerLat(::-1)
+
+; first check if 2D
+doCurvilinear=False
+if (isfilevar(trackerFile, "XLAT")) then
+  print("found XLAT, doing curvilinear")
+  trackerLat=trackerFile->XLAT
+  trackerLon=trackerFile->XLONG
+  doCurvilinear=True
+else
+  print("doing RLL")
+  trackerLat=trackerFile->lat
+  if (isStoN) then
+    trackerLat = trackerLat(::-1)
+  end if
+  trackerLon=trackerFile->lon
 end if
-trackerLon=trackerFile->lon
 
-trackerTopo = linint2_Wrap(topoTopo&lon,topoTopo&lat,topoTopo,isglobal,trackerLon,trackerLat,0)
-
-if (isStoN .and. keepStoN) then
-  trackerTopo = trackerTopo(::-1,:)
+if (doCurvilinear) then
+  trackerTopo = rgrid2rcm_Wrap(topoTopo&lat,topoTopo&lon,topoTopo,trackerLat,trackerLon,1)
+else
+  trackerTopo = linint2_Wrap(topoTopo&lon,topoTopo&lat,topoTopo,isglobal,trackerLon,trackerLat,0)
+  if (isStoN .and. keepStoN) then
+    trackerTopo = trackerTopo(::-1,:)
+  end if
 end if
 
 if (write_output) then
