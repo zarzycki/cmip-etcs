@@ -12,9 +12,7 @@ write_output=True
 isglobal=True
 isStoN=False
 keepStoN=False
-
-;  doLonShift=True
-doLonShift=False ; True for MERRA, False for JRA
+doLonShift=False ; flip from -180-180 to 0-360 or vice versa? 
 
 topoDir = getenv("TOPOORIGDIR")
 print("TopoDir is: "+topoDir)
@@ -28,7 +26,7 @@ topoFileName=topoDir+"/2deg_cesm_topo_latlon.nc"
 ;trackerFileName="/glade/u/home/zarzycki/scratch/ERA5/CAT.ERA5.U850.201701.nc"
 
 topoFile=addfile(topoFileName,"r")
-stride=64
+stride=1    ; NOTE: this can be relaxed, particularly for lower res data
 topoLat=topoFile->lat(::stride)
 topoLon=topoFile->lon(::stride)
 topoTopo=topoFile->PHIS(::stride,::stride)
