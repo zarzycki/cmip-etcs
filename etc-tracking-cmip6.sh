@@ -81,6 +81,7 @@ if [[ $HOSTNAME = cheyenne* ]]; then
   PATHTOFILES2=/glade/collections/cmip/CMIP6/CMIP/${PARENTSTR}/${UQSTR}/historical/${ENSEMBLEMEMBER}/3hr/pr/${GRIDDATE}/pr/
   PATHTOFILES3=/glade/scratch/zarzycki/CMIPTMP/${UQSTR}/
   TOPOFILE=/glade/work/zarzycki/topo-files/CMIP6/${UQSTR}.topo.nc
+  TOPOORIGDIR=/glade/work/zarzycki/cam_tools/hires-topo/
   THISSED="sed"
 elif [[ $(hostname -s) = MET-MAC* ]]; then
   TEMPESTEXTREMESDIR=/Users/cmz5202/Software/tempestextremes/
