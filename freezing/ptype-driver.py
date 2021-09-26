@@ -110,6 +110,17 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
                 a[1] = calpreciptype.calwxt_ramer(T[zz,:,ii,jj],pmid[zz,:,ii,jj],rh[zz,:,ii,jj],td[zz,:,ii,jj])
                 a[2] = calpreciptype.calwxt_revised(T[zz,:,ii,jj],Q[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],d608,rog,epsq,zint[zz,:,ii,jj],TW[zz,:,ii,jj])
 
+                # Check if Ramer returned 0 -- if yes, randomly pick rain/snow/ice
+                if (a[1] == 0):
+                    rand = np.random.uniform(0,1,1)
+                    if (rand[0] < 0.3333):
+                        a[1] = 1
+                    elif (rand[0] > 0.6666):
+                        a[1] = 8
+                    else:
+                        a[1] = 2
+                    #print("RAMER FOUND ZERO, we picked: ",a[1])
+
                 # Count number of ptypes from each algo for this cell
                 counts = np.bincount(a)
 

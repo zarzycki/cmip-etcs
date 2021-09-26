@@ -515,10 +515,10 @@
 !gsm   type from the ramer in this situation and allow the
 !gsm   other algorithms to make the call.
       
-           ptyp = 2       !  don't know 
+           ptyp = 0       !  don't know 
            !ptyp = 5       !  mix
         else
-           ptyp = 2       !  mix
+           ptyp = 0       !  mix
            !ptyp = 0       !  don't know 
         end if
       end if
