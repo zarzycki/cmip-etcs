@@ -1,3 +1,6 @@
+forcing-gen.o*
+forcing-gen.e*
+for-booth/
 !freezing/sample-LENS/*nc
 *.ipynb
 .ipynb_checkpoints

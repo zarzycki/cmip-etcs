@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+
+# execcasper -A P93300642 --mem=20GB
+
+# In[1]:
+
+
 import os
 import sys
 import numpy as np
@@ -5,6 +14,9 @@ import xarray as xr
 import metpy.calc as mpcalc
 import calpreciptype
 from tqdm import tqdm
+#import argparse
+
+# In[2]:
 
 def np_ffill(arr, axis):
     '''https://stackoverflow.com/a/60941040'''
@@ -16,6 +28,10 @@ def np_ffill(arr, axis):
         for i, k in enumerate(arr.shape)]
     slc[axis] = idx
     return arr[tuple(slc)]
+
+
+# In[3]:
+
 
 # Inputs:
 # T (ntim,nlev,nlat,nlon) in K
@@ -49,8 +65,6 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
 
     print("Calculating relative humidity")
     rh = mpcalc.relative_humidity_from_specific_humidity(pmid, T, Q)
-    # Where RH > 100%, set to 100%
-    rh = rh.where(rh < 1.0, 1.0)
     # Where RH < 0 (high in atmo), just set to tiny positive number
     rh = rh.where(rh > rheps, rheps)
     rh = xr.DataArray(np.asarray(rh), dims=('time', 'lev', 'lat', 'lon'), coords=T.coords)
@@ -73,7 +87,6 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
     # We can use this to dump diags re: the thermodynamic quantities from metpy -- set to true to dump.
     print_diags=False
     if print_diags:
-        print("NOTE: Printing diags inside of calc_ptype!")
         diags = xr.merge([T,Q,pmid,pint,rh,td,TW])
         outFileName = os.path.join('./diag.nc')
         diags.to_netcdf(outFileName, unlimited_dims = "time")
@@ -130,8 +143,14 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
                 else:
                     # This means we have at least 2/1 (or, better, 3/0) agreement, pick "winner"
                     ptype[zz,ii,jj] = np.argmax(counts)
+                
+                # CMZ -- debugging issues
+                #ptype[zz,ii,jj] = a[0]
                     
     return ptype
+
+
+# In[4]:
 
 def calc_zint(pint,TKV,ntim,nlevp1,doFlip=False):
 
@@ -163,6 +182,9 @@ def calc_zint(pint,TKV,ntim,nlevp1,doFlip=False):
                 zint[zz,kk+1,:,:] = zint[zz,kk,:,:] + rog * TKV[zz,kk,:,:] * np.log(pint[zz,kk,:,:]/pint[zz,kk+1,:,:])
 
     return zint
+
+
+# In[5]:
 
 def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     
@@ -231,133 +253,91 @@ def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     pint = pint.where(pint < pmaxi, psexpandi)
 
     # Do some cleanup here for funsies
-    del psexpand, psexpandi, pintnp
+    #del psexpand, psexpandi, pintnp
     
     # Return xarray DataArrays for T, Q, pmid, and pint to main function
     return T, Q, pmid, pint
 
-### MAIN PROGRAM BEGINS HERE!
 
-dataset = "ERA5"
-print("dataset "+dataset)
-
-if dataset == "LENS":
+### ERA5 STUFF!
     
-    #--  data file name
-    fname  = "./sample-LENS/T.nc"
-    ds = xr.open_dataset(fname)
-    T = ds.T[:,:,:,:]
-    ds.close()
-    
-    fname  = "./sample-LENS/Q.nc"
-    ds = xr.open_dataset(fname)
-    Q = ds.Q[:,:,:,:]
-    ds.close()
-    
-    fname  = "./sample-LENS/PS.nc"
-    ds = xr.open_dataset(fname)
-    PS=ds.PS[:,:,:]
-    
-    pmid = ds.hyam*ds.P0 + ds.hybm*PS
-    pmid.name="PMID"
-    pmid.attrs['units'] = 'Pa'
-    pmid = pmid.transpose('time', 'lev', 'lat', 'lon')
+# Settings
+YYYY="1996"
+MM="07"
+horizstride=1   # If 1, 0.25deg, if 2 0.5deg, if 4 1.0deg, etc.
+timestride=6    # hourly data, take every 6th timestep to match CMIP
+# Indices
+STAIX=0
+FINIX=1000000000   # Set to super big number -- can be used for "splitting" of long files...
 
-    pint = ds.hyai*ds.P0 + ds.hybi*ds.PS
-    pint.name="PINT"
-    pint.attrs['units'] = 'Pa'
-    pint = pint.transpose('time', 'ilev', 'lat', 'lon')
+#--  data file name
+fname = "/glade/collections/rda/data/ds633.0/e5.oper.an.pl/"+YYYY+MM+"/e5.oper.an.pl.128_130_t.ll025sc."+YYYY+MM+"*.nc"
+ds    = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
 
-    ds.close()
-    
-    # Get time-lev-lat-lon coords
-    # ... and time-lat-lon coords
-    TLLLcoords = T.coords
-    TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
-    
-    print ("Getting dim sizes")
-    ntime = T.sizes['time']
-    nlev  = T.sizes['lev']
-    nlat  = T.sizes['lat']
-    nlon  = T.sizes['lon']
-    
-else:
-    
-    # Settings
-    stride=1
-    numtimes=8
-    # Indices
-    STAIX=0
-    FINIX=STAIX+numtimes
+### Check if the maximum time length is beyond finix, if so, truncate
+timeArr = ds.time[::timestride]
+MAXIX=len(timeArr.values)
+print(timeArr)
+print(MAXIX)
 
-    #--  data file name
-    fname = "./sample-ERA5/T.nc"
-    ds    = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+### Fix indices
+FINIX=min([FINIX, MAXIX])
 
-    ### Check if the maximum time length is beyond finix, if so, truncate
-    timeArr = ds.time
-    MAXIX=len(timeArr.values)
-    
-    ### Fix indices
-    FINIX=min([FINIX, MAXIX])
-    
-    # Calculate loop indices
-    LOOPIX=FINIX-STAIX
+# Calculate loop indices
+LOOPIX=FINIX-STAIX
 
-    ### Set formatted date for output
-    formattedDate = timeArr.dt.strftime('%Y%m%d%H')
+### Set formatted date for output
+formattedDate = timeArr.dt.strftime('%Y%m%d%H')
 
-    ### Get Temperature
-    print("Getting T")
-    T = ds.T[STAIX:FINIX,:,::stride,::stride]
-    T = T.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
-    T.load()
-    ds.close()
+### Get Temperature
+print("Getting T")
+T = ds.T[::timestride,:,::horizstride,::horizstride]
+T = T.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
+T.load()
+ds.close()
 
-    # Get time-lev-lat-lon coords
-    # ... and time-lat-lon coords
-    TLLLcoords = T.coords
-    TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
+# Get time-lev-lat-lon coords
+# ... and time-lat-lon coords
+TLLLcoords = T.coords
+TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
 
-    ### Get specific humidity
-    print("Getting Q")
-    fname="./sample-ERA5/Q.nc"
-    ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
-    Q = ds.Q[STAIX:FINIX,:,::stride,::stride]
-    Q = Q.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
-    Q.load()
-    ds.close()
+### Get specific humidity
+print("Getting Q")
+fname="/glade/collections/rda/data/ds633.0/e5.oper.an.pl/"+YYYY+MM+"/e5.oper.an.pl.128_133_q.ll025sc."+YYYY+MM+"*.nc"
+ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+Q = ds.Q[::timestride,:,::horizstride,::horizstride]
+Q = Q.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
+Q.load()
+ds.close()
 
-    ## This handles model level data by reading PS and "building" p at model levels
-    print("Getting PS")
-    fname  = "./sample-ERA5/PS.nc"
-    ds = xr.open_mfdataset(fname, combine='by_coords')
-    PS=ds.SP[STAIX:FINIX,::stride,::stride]
-    PS = PS.rename({'time':'time','latitude':'lat','longitude':'lon'})
-    PS.load()
-    ds.close()
+## This handles model level data by reading PS and "building" p at model levels
+print("Getting PS")
+fname  = "/glade/collections/rda/data/ds633.0/e5.oper.an.sfc/"+YYYY+MM+"/e5.oper.an.sfc.128_134_sp.ll025sc."+YYYY+MM+"0100_*.nc"
+ds = xr.open_mfdataset(fname, combine='by_coords')
+PS=ds.SP[::timestride,::horizstride,::horizstride]
+PS = PS.rename({'time':'time','latitude':'lat','longitude':'lon'})
+PS.load()
+ds.close()
 
-    print ("Getting dim sizes")
-    ntime = LOOPIX
-    nlev  = T.sizes['lev']
-    nlat  = T.sizes['lat']
-    nlon  = T.sizes['lon']
+print ("Getting dim sizes")
+ntime = LOOPIX
+nlev  = T.sizes['lev']
+nlat  = T.sizes['lat']
+nlon  = T.sizes['lon']
 
-    ## From constant pressure level T, Q, + PS, build pmid and pint arrays
-    T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],ntime,nlev,nlat,nlon)
+## From constant pressure level T, Q, + PS, build pmid and pint arrays
+T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],ntime,nlev,nlat,nlon)
 
 ## Calculate ptype
 ptype = calc_ptype(T,Q,pmid,pint,-1,ntime,nlev,nlat,nlon)
 
-## Write stuff to disk
-print("Writing to disk")
 ptype = xr.DataArray(ptype, dims=('time', 'lat', 'lon'), coords=TLLcoords)
 ptype.name="PTYPE"
 
 output = xr.merge([ptype])
 
-if dataset == "LENS":
-    output.to_netcdf('LENS-ptype.nc')
-else:
-    outFileName = os.path.join('./ERA-ptype.nc')
-    output.to_netcdf(outFileName, unlimited_dims = "time", encoding={'time':{'units':'days since 1950-01-01'}} )
+outFileName = os.path.join('/glade/scratch/zarzycki/ERA-ptype'+YYYY+MM+'.nc')
+output.to_netcdf(outFileName, unlimited_dims = "time", encoding={'time':{'units':'days since 1950-01-01'}} )
+
+
+
