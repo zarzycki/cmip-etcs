@@ -252,7 +252,7 @@
 !   code adapted for wrf post  24 august 2005    g manikin
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-      subroutine calwxt_ramer(lm,t,pmid,rh,td,ptyp)
+      subroutine calwxt_ramer(lm,t,pmid,pint,rh,td,ptyp)
 
 !      subroutine dophase(pq,   !  input pressure sounding mb
 !     +    t,   !  input temperature sounding k
@@ -269,19 +269,21 @@
       real,parameter :: twice=266.55,rhprcp=0.80,deltag=1.02,             &
      &                  emelt=0.045,rlim=0.04,slim=0.85
       real,parameter :: twmelt=273.15,tz=273.15,efac=1.0 ! specify in params now 
+      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
 !
       integer*4 i, k1, lll, k2, toodry
 !
       real xxx ,mye, icefrac
       integer,            intent(in)  :: lm
       real,dimension(lm), intent(in)  :: t,pmid,rh,td
+      real,dimension(lm+1), intent(in)  :: pint
       integer,            intent(out) :: ptyp
 !
       real,dimension(lm)              :: tq,pq,rhq,twq
 !
       integer j,l,lev,ii,lp1
       real    rhmax,twmax,ptop,dpdrh,twtop,rhtop,wgt1,wgt2,    &
-              rhavg,dtavg,dpk,ptw,pbot
+              rhavg,dtavg,dpk,ptw,pbot,tz_adj
 !     real b,qtmp,rate,qc
       real,external :: xmytw
 !
@@ -303,6 +305,14 @@
         pq(lev)  = pmid(l) * 0.01
         tq(lev)  = t(l)
       enddo
+
+! ++CMZ
+! first we are going to update the surface freezing temperature based on hypsometric
+tz_adj = tz
+tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+!print *,' tz_adj: ',tz_adj,'   from: ',tz 
+!print *, pint(lm+1) ,' ', pmid(lm),' ', Rdry ,' ', t(1)
+! -- CMZ
 
 
 !
@@ -494,6 +504,7 @@
 !
 !     determine precip type based on snow fraction and surface wet-bulb.
 !
+
       if (icefrac >= slim) then
         if (lll /= 0) then
           ptyp = 2       ! ice pellets   jc 9/16/99
@@ -501,13 +512,13 @@
           ptyp = 1       !  snow
         end if
       else if (icefrac <= rlim) then
-        if (twq(1).lt.tz) then
+        if (twq(1).lt.tz_adj) then
           ptyp = 4       !  freezing precip
         else
           ptyp = 8       !  rain
         end if
       else
-        if (twq(1) < tz) then
+        if (twq(1) < tz_adj) then
 !gsm not sure what to do when 'mix' is predicted;   in previous
 !gsm   versions of this code for which i had to have an answer,
 !gsm   i chose sleet.  here, though, since we have 4 other
@@ -663,6 +674,9 @@
 !
       integer ifrzl,iwrml,l,lhiwrm
       real    pintk1,areane,tlmhk,areape,pintk2,surfw,area1,dzkl,psfck,r1,r2
+      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
+      real    tz_adj
+
 !
 !     initialize weather type array to zero (ie, off).
 !     we do this since we want ptype to represent the
@@ -685,6 +699,13 @@
      &            iwrml == lm+1) iwrml = l
         end do
       end if
+      
+!++ CMZ
+tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+!-- CMZ
+
+
+
 !
 !     now find the highest above freezing level
 !
@@ -777,7 +798,7 @@
           end if
         elseif (areane < 46.0+0.66*areape) then
 !    not enough negative energy to refreeze, check surface temp to determine rain vs. zr
-          if (tlmhk < 273.15) then      !                     freezing rain = 4
+          if (tlmhk < tz_adj) then      !                     freezing rain = 4
              ptype = 4
           else                          !                     rain = 8
              ptype = 8
@@ -802,7 +823,7 @@
             end if
           else
 !    not enough negative energy to refreeze, check surface temp to determine rain vs. zr
-            if (tlmhk < 273.15) then    !                     freezing rain = 4
+            if (tlmhk < tz_adj) then    !                     freezing rain = 4
                ptype = 4
             else                        !                     rain = 8
                ptype = 8
@@ -877,7 +898,9 @@
       integer l,lmhk,lice,iwrml,ifrzl
       real    psfck,tdchk,a,tdkl,tdpre,tlmhk,twrmk,areas8,areap4,area1,   &
               surfw,surfc,dzkl,pintk1,pintk2,pm150,qkl,tkl,pkl,area0,areap0
-
+      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
+      real    tz_adj
+      
 !    subroutines called:
 !     wetbulb
 !     
@@ -892,6 +915,12 @@
 !
       iwx = 0
       lmhk=lm
+      
+!++ CMZ
+tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+!-- CMZ
+
+
 !
 !   find coldest and warmest temps in saturated layer between
 !   70 mb above ground and 500 mb
@@ -1053,7 +1082,7 @@
           return
         endif
 !
-        if (tlmhk < 273.15) then
+        if (tlmhk < tz_adj) then
 !            turn on the flag for freezing rain = 4 if its not on already
 !            izr=mod(iwx(k),8)/4
 !            if (izr.lt.1) iwx(k)=iwx(k)+4
