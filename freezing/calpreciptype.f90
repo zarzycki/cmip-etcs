@@ -252,7 +252,7 @@
 !   code adapted for wrf post  24 august 2005    g manikin
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-      subroutine calwxt_ramer(lm,t,pmid,pint,rh,td,ptyp)
+      subroutine calwxt_ramer(lm,t,pmid,pint,rh,td,gamma,ptyp)
 
 !      subroutine dophase(pq,   !  input pressure sounding mb
 !     +    t,   !  input temperature sounding k
@@ -269,7 +269,7 @@
       real,parameter :: twice=266.55,rhprcp=0.80,deltag=1.02,             &
      &                  emelt=0.045,rlim=0.04,slim=0.85
       real,parameter :: twmelt=273.15,tz=273.15,efac=1.0 ! specify in params now 
-      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
+      real,parameter :: Rdry=287.05,grav=9.81 ! CMZ added
 !
       integer*4 i, k1, lll, k2, toodry
 !
@@ -278,12 +278,14 @@
       real,dimension(lm), intent(in)  :: t,pmid,rh,td
       real,dimension(lm+1), intent(in)  :: pint
       integer,            intent(out) :: ptyp
+      real,intent(in)                :: gamma
 !
       real,dimension(lm)              :: tq,pq,rhq,twq
 !
       integer j,l,lev,ii,lp1
       real    rhmax,twmax,ptop,dpdrh,twtop,rhtop,wgt1,wgt2,    &
-              rhavg,dtavg,dpk,ptw,pbot,tz_adj
+              rhavg,dtavg,dpk,ptw,pbot
+      real    tz_adj
 !     real b,qtmp,rate,qc
       real,external :: xmytw
 !
@@ -308,9 +310,12 @@
 
 ! ++CMZ
 ! first we are going to update the surface freezing temperature based on hypsometric
-tz_adj = tz
-tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
-!print *,' tz_adj: ',tz_adj,'   from: ',tz 
+if (gamma >= 0.0) then
+  tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+else
+  tz_adj = tz
+end if
+!print *,'RAMER: tz_adj: ',tz_adj,'   from: ',tz,'    because of gamma: ',gamma
 !print *, pint(lm+1) ,' ', pmid(lm),' ', Rdry ,' ', t(1)
 ! -- CMZ
 
@@ -660,7 +665,7 @@ tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
 !                                       and layer lmh = bottom
 !
 !$$$
-      subroutine calwxt_bourg(lm,lp1,rn,g,t,q,pmid,pint,zint,ptype)
+      subroutine calwxt_bourg(lm,lp1,rn,g,t,q,pmid,pint,zint,gamma,ptype)
       implicit none
 !
 !    input:
@@ -668,13 +673,14 @@ tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
       real,intent(in)                 :: g,rn(2)
       real,intent(in), dimension(lm)  :: t, q, pmid
       real,intent(in), dimension(lp1) :: pint, zint
+      real,intent(in)                 :: gamma
 !
 !    output:
       integer, intent(out)            :: ptype
 !
       integer ifrzl,iwrml,l,lhiwrm
       real    pintk1,areane,tlmhk,areape,pintk2,surfw,area1,dzkl,psfck,r1,r2
-      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
+      real,parameter :: Rdry=287.05,grav=9.81 ! CMZ added
       real    tz_adj
 
 !
@@ -701,9 +707,12 @@ tz_adj = tz - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
       end if
       
 !++ CMZ
-tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+if (gamma >= 0.0) then
+  tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+else
+  tz_adj = 273.15
+end if
 !-- CMZ
-
 
 
 !
@@ -837,7 +846,7 @@ tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
 !
 !
        subroutine calwxt_revised(lm,lp1,t,q,pmid,pint,         &
-                                 d608,rog,epsq,zint,twet,iwx)
+                                 d608,rog,epsq,zint,twet,gamma,iwx)
 ! 
 !     file: calwxt.f
 !     written: 11 november 1993, michael baldwin
@@ -880,6 +889,7 @@ tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
       real,dimension(lm),intent(in)  ::  t,q,pmid,twet
       real,dimension(lp1),intent(in) ::  pint,zint 
       real,intent(in)                ::  d608,rog,epsq
+      real,intent(in)                :: gamma
 !    output:
 !      iwx - instantaneous weather type.
 !        acts like a 4 bit binary
@@ -898,7 +908,7 @@ tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
       integer l,lmhk,lice,iwrml,ifrzl
       real    psfck,tdchk,a,tdkl,tdpre,tlmhk,twrmk,areas8,areap4,area1,   &
               surfw,surfc,dzkl,pintk1,pintk2,pm150,qkl,tkl,pkl,area0,areap0
-      real,parameter :: gamma=0.0065,Rdry=287.05,grav=9.81 ! CMZ added
+      real,parameter :: Rdry=287.05,grav=9.81 ! CMZ added
       real    tz_adj
       
 !    subroutines called:
@@ -917,7 +927,11 @@ tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
       lmhk=lm
       
 !++ CMZ
-tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+if (gamma >= 0.0) then
+  tz_adj = 273.15 - gamma * Rdry * t(lm) * LOG( pint(lm+1) / pmid(lm) ) / grav
+else
+  tz_adj = 273.15
+end if
 !-- CMZ
 
 

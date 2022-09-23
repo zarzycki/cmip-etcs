@@ -107,9 +107,10 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
             for ii in range(nlat):
                 # Calculate ptype at this time + location with 3 different algos
                 # Top to bottom!
-                a[0] = calpreciptype.calwxt_bourg(np.random.rand(2),grav,T[zz,:,ii,jj],Q[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],zint[zz,:,ii,jj])
-                a[1] = calpreciptype.calwxt_ramer(T[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],rh[zz,:,ii,jj],td[zz,:,ii,jj])
-                a[2] = calpreciptype.calwxt_revised(T[zz,:,ii,jj],Q[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],d608,rog,epsq,zint[zz,:,ii,jj],TW[zz,:,ii,jj])
+                gamma_corr = 0.005
+                a[0] = calpreciptype.calwxt_bourg(np.random.rand(2),grav,T[zz,:,ii,jj],Q[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],zint[zz,:,ii,jj],gamma_corr)
+                a[1] = calpreciptype.calwxt_ramer(T[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],rh[zz,:,ii,jj],td[zz,:,ii,jj],gamma_corr)
+                a[2] = calpreciptype.calwxt_revised(T[zz,:,ii,jj],Q[zz,:,ii,jj],pmid[zz,:,ii,jj],pint[zz,:,ii,jj],d608,rog,epsq,zint[zz,:,ii,jj],TW[zz,:,ii,jj],gamma_corr)
 
                 # Check if Ramer returned 0 -- if yes, randomly pick rain/snow/ice
                 if (a[1] == 0):
