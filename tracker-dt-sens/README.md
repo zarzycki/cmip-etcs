@@ -1,0 +1,5 @@
+- Get candidate cyclones and verify that they are bit-for-bit identical for overlapping times (e.g., timestride of 1 vs timestride of 6)
+- Run a "control" StitchNodes using Gore et al., 2023 configuration
+- Run a sensitivity experiment of hourly StitchNodes to figure out what is the best RMSE of the density to the 6-hourly data (sens.sh and testing.sh)
+- Call the lowest RMSE value the "most 6-hourly" config for hourly data (RMSE.py)
+- NOTE: This may not be the optimal hourly tracking config but gives the most 6-hourly like results.
