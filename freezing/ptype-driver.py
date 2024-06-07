@@ -62,22 +62,22 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
     td = mpcalc.dewpoint_from_relative_humidity(T, rh).metpy.convert_units('K')
     td = xr.DataArray(np.asarray(td), dims=('time', 'lev', 'lat', 'lon'), coords=T.coords)
     td.name="TD"
-    
+
     print("Calculating wet bulb temperature")
     TW = (T-273.15)*np.arctan(0.151977*((rh*100.)+8.313659)**(0.5))+np.arctan((T-273.15) + (rh*100.)) - np.arctan((rh*100.) - 1.676331) + 0.00391838*(rh*100.)**(3/2)*np.arctan(0.023101*(rh*100.)) - 4.686035
     TW = TW + 273.15
     TW = xr.DataArray(np.asarray(TW), dims=('time', 'lev', 'lat', 'lon'), coords=T.coords)
     TW.name="TWET"
     TW.attrs['units'] = 'K'
-    
+
     # We can use this to dump diags re: the thermodynamic quantities from metpy -- set to true to dump.
-    print_diags=False
+    print_diags=True
     if print_diags:
         print("NOTE: Printing diags inside of calc_ptype!")
         diags = xr.merge([T,Q,pmid,pint,rh,td,TW])
         outFileName = os.path.join('./diag.nc')
         diags.to_netcdf(outFileName, unlimited_dims = "time")
-    
+
     # These are all xarray, but lets check and convert to numpy to speed things up
     # xr arrays can get passed into the precip type calcs, but about 10x slower
     print("Converting xarray -> numpy")
@@ -101,7 +101,7 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
     a = np.array([0,0,0])
     # Initialize ptype array TLL
     ptype = np.empty((ntim, nlat, nlon))
-    
+
     for zz in range(ntim):
         for jj in tqdm(range(nlon)):
             for ii in range(nlat):
@@ -132,16 +132,16 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
                 else:
                     # This means we have at least 2/1 (or, better, 3/0) agreement, pick "winner"
                     ptype[zz,ii,jj] = np.argmax(counts)
-                    
+
     return ptype
 
 def calc_zint(pint,TKV,ntim,nlevp1,doFlip=False):
 
     grav=9.80665
     rog=287.04/grav
-  
+
     p1dims = np.asarray(pint.shape)
-    
+
     # Now calculate zint
     zint=np.empty(p1dims)
 
@@ -153,7 +153,7 @@ def calc_zint(pint,TKV,ntim,nlevp1,doFlip=False):
             for kk in tqdm(range(nlevp1-1)):
                 kkf = nlevp1-kk-1
                 zint[zz,kk+1,:,:] = zint[zz,kk,:,:] + rog * TKV[zz,kkf-1,:,:] * np.log(pint[zz,kkf,:,:]/pint[zz,kkf-1,:,:])
-    
+
         # If zint doesn't match orientation of other vars, we can just flip the numpy array before
         # building an xr DataArray
         zint = zint[:,::-1,:,:]
@@ -167,17 +167,17 @@ def calc_zint(pint,TKV,ntim,nlevp1,doFlip=False):
     return zint
 
 def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
-    
+
     # Constants go here:
     model_lid=10.  # Pa
-    
+
     print("Expanding levs...")
     ### This code takes a single-dimensioned lev xr.DataArray and expands it to 4dim ntim,nlev,nlat,nlon
     pmid = lev.expand_dims({'time': T.coords['time'],'lat': T.coords['lat'], 'lon': T.coords['lon']},(0,2,3))
     pmid.name="P4D"
     pmid = pmid * 100.
     pmid.attrs['units'] = 'Pa'
-    
+
     # Set up a pint np array
     pdims = [ntime,nlev,nlat,nlon]
     nlevp1 = nlev+1
@@ -219,7 +219,7 @@ def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     pintnp[:,0,:,:] = pmid[:,0,:,:].values - (pmid[:,1,:,:].values - pmid[:,0,:,:].values) / 2.
     # Define a model lid to avoid p -> 0 errors.
     pintnp[:,0,:,:] = np.where(pintnp[:,0,:,:] > 0, pintnp[:,0,:,:], model_lid)
-    
+
     # Calculate remainder of "inner" interface levels by splitting pmid layers in half
     pintnp[:,1:nlevp1-1,:,:] = np.add( pmid[:,0:nlev-1,:,:].values , pmid[:,1:nlev,:,:].values ) / 2.
 
@@ -227,39 +227,160 @@ def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     pint = xr.DataArray(np.asarray(pintnp), dims=('time', 'ilev', 'lat', 'lon'), coords={'time': T.coords['time'], 'ilev' : pintnp[0,:,0,0] , 'lat': T.coords['lat'], 'lon': T.coords['lon']})
     pint.name="PINT"
     pint.attrs['units'] = 'Pa'
-    
+
     # Wherever pint >= lowest model level p (pmax) we are either A: below ground or B: at the sfc interface
     # Therefore, set all of these to PS since the lower interface to pbot must be PS by definition
     pint = pint.where(pint < pmaxi, psexpandi)
 
     # Do some cleanup here for funsies
     del psexpand, psexpandi, pintnp
-    
+
     # Return xarray DataArrays for T, Q, pmid, and pint to main function
     return T, Q, pmid, pint
 
+# If user passes in Qsrf = -1.0
+def pop_on_2m(T,Q,pmid,pint,Tsrf,Qsrf):
+
+    def find_first_repeated_index(arr):
+        bottom_value = arr[-1]
+        for i, value in enumerate(arr):
+            if value == bottom_value:
+                return i
+        return len(arr) - 1  # Return the bottom index if no repeated value is found
+
+    # Apply the function along the 'lev' dimension
+    def find_first_repeated_location(data_array,coordinate_to_be_core):
+        result = xr.apply_ufunc(
+            find_first_repeated_index,
+            data_array,
+            input_core_dims=[[coordinate_to_be_core]],
+            vectorize=True,
+            dask='parallelized',
+            output_dtypes=[int]
+        )
+        return result
+
+    # Conditionally drop variables if they exist
+    def drop_if_exists(data_array, var):
+        if var in data_array.coords:
+            return data_array.drop_vars(var)
+        return data_array
+
+    # Create local arrays, dropping coordinates if they exist
+    pmid_tmp = drop_if_exists(pmid, 'lev')
+    pint_tmp = drop_if_exists(pint, 'ilev')
+    T_tmp = drop_if_exists(T, 'lev')
+    Q_tmp = drop_if_exists(Q, 'lev')
+
+    # Find the first repeated locations for pmid and pint
+    first_repeated_index_pmid = find_first_repeated_location(pmid, 'lev')
+    first_repeated_index_pint = find_first_repeated_location(pint, 'ilev')
+
+    # Use these indices to extract the corresponding values from pmid and pint
+    old_pmid_bot = pmid.isel(lev=first_repeated_index_pmid)
+    old_pint_bot = pint.isel(ilev=first_repeated_index_pint)
+    old_T_bot = T.isel(lev=first_repeated_index_pmid)
+    old_Q_bot = Q.isel(lev=first_repeated_index_pmid)
+
+    if np.isscalar(Qsrf) and Qsrf < 0.0:
+        Qsrf = Q_tmp[:,-1,:,:]
+
+    # Ensure newT and newQ have the "lev" dimension in the 2nd position
+    if 'lev' not in Tsrf.dims:
+        Tsrf = Tsrf.expand_dims(dim='lev', axis=1).drop_vars('lev', errors='ignore')
+    if 'lev' not in Qsrf.dims:
+        Qsrf = Qsrf.expand_dims(dim='lev', axis=1).drop_vars('lev', errors='ignore')
+
+    # Glue on Tsrf and Qsrf and repeate bottom pmid and pint
+    T_tmp = xr.concat([T_tmp, Tsrf], dim='lev')
+    Q_tmp = xr.concat([Q_tmp, Qsrf], dim='lev')
+    pmid_tmp = xr.concat([pmid_tmp, pmid_tmp[:,-1,:,:]], dim='lev')
+    pint_tmp = xr.concat([pint_tmp, pint_tmp[:,-1,:,:]], dim='ilev')
+
+    # Manually expand Tsrf and Qsrf to match the dimensions of T and Q
+    Tsrf_expanded = xr.DataArray(
+        np.full_like(T_tmp, Tsrf.values),
+        dims=T_tmp.dims)
+    Qsrf_expanded = xr.DataArray(
+        np.full_like(Q_tmp, Qsrf.values),
+        dims=Q_tmp.dims)
+
+    # Overwrite all values equal to old_T_bot and old_Q_bot with Tsrf and Qsrf
+    T_tmp = xr.where(T_tmp == old_T_bot, Tsrf_expanded, T_tmp, keep_attrs=True)
+    Q_tmp = xr.where(Q_tmp == old_Q_bot, Qsrf_expanded, Q_tmp, keep_attrs=True)
+
+    # Now go back and add old_T_bot where it should be injected
+    T_tmp[:,first_repeated_index_pmid,:,:] = old_T_bot
+    Q_tmp[:,first_repeated_index_pmid,:,:] = old_Q_bot
+
+    # Update pint to be a level just above the surface
+    pint_tmp[:,first_repeated_index_pint,:,:] = old_pint_bot - 200.
+
+    # Update "lowest" pmid to account for new pint
+    pmid_tmp[:,first_repeated_index_pmid,:,:] = (pint_tmp[:,first_repeated_index_pint,:,:] + pint_tmp[:,first_repeated_index_pint-1,:,:]) / 2.0
+
+    # Replace all other other pmids with the new lowest pmid
+    new_pmid_bot = (pint_tmp[:,first_repeated_index_pint+1,:,:] + pint_tmp[:,first_repeated_index_pint,:,:]) / 2.0
+    new_pmid_bot = new_pmid_bot.expand_dims(dim='lev', axis=1).drop_vars('lev', errors='ignore')
+    new_pmid_bot_expanded = xr.DataArray(
+        np.full_like(pmid_tmp, new_pmid_bot.values),
+        dims=pmid_tmp.dims)
+
+    pmid_tmp = xr.where(pmid_tmp == old_pmid_bot, new_pmid_bot_expanded, pmid_tmp, keep_attrs=True)
+
+    # Drop weird lev coordinates
+    pint_tmp = drop_if_exists(pint_tmp, 'lev')
+    pmid_tmp = drop_if_exists(pmid_tmp, 'lev')
+    Q_tmp = drop_if_exists(Q_tmp, 'lev')
+    T_tmp = drop_if_exists(T_tmp, 'lev')
+
+    # Copy attributes from input vars to output
+    pmid_tmp.attrs = pmid.attrs
+    pint_tmp.attrs = pint.attrs
+    T_tmp.attrs = T.attrs
+    Q_tmp.attrs = Q.attrs
+
+    return T_tmp, Q_tmp, pmid_tmp, pint_tmp
+
+def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix):
+    nlev = T.sizes['lev']
+
+    for i in range(nlev + 1):
+        valA = pint.values[timeix, i, latix, lonix]
+        if i < nlev:
+            valB = pmid.values[timeix, i, latix, lonix]
+            valC = T.values[timeix, i, latix, lonix]
+            valD = Q.values[timeix, i, latix, lonix]
+
+        if i < nlev:
+            print(f"{valA / 100.} {valB / 100.} {valC} {valD}")
+        else:
+            print(f"{valA / 100.}")
+            print("=======")
+
 ### MAIN PROGRAM BEGINS HERE!
 
-dataset = "ERA5"
+# LENS, ERA5, or DEBUG
+dataset = "DEBUG"
 print("dataset "+dataset)
 
 if dataset == "LENS":
-    
+
     #--  data file name
     fname  = "./sample-LENS/T.nc"
     ds = xr.open_dataset(fname)
     T = ds.T[:,:,:,:]
     ds.close()
-    
+
     fname  = "./sample-LENS/Q.nc"
     ds = xr.open_dataset(fname)
     Q = ds.Q[:,:,:,:]
     ds.close()
-    
+
     fname  = "./sample-LENS/PS.nc"
     ds = xr.open_dataset(fname)
     PS=ds.PS[:,:,:]
-    
+
     pmid = ds.hyam*ds.P0 + ds.hybm*PS
     pmid.name="PMID"
     pmid.attrs['units'] = 'Pa'
@@ -271,20 +392,14 @@ if dataset == "LENS":
     pint = pint.transpose('time', 'ilev', 'lat', 'lon')
 
     ds.close()
-    
+
     # Get time-lev-lat-lon coords
     # ... and time-lat-lon coords
     TLLLcoords = T.coords
     TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
-    
-    print ("Getting dim sizes")
-    ntime = T.sizes['time']
-    nlev  = T.sizes['lev']
-    nlat  = T.sizes['lat']
-    nlon  = T.sizes['lon']
-    
-else:
-    
+
+elif dataset == "ERA5":
+
     # Settings
     stride=1
     numtimes=8
@@ -299,10 +414,10 @@ else:
     ### Check if the maximum time length is beyond finix, if so, truncate
     timeArr = ds.time
     MAXIX=len(timeArr.values)
-    
+
     ### Fix indices
     FINIX=min([FINIX, MAXIX])
-    
+
     # Calculate loop indices
     LOOPIX=FINIX-STAIX
 
@@ -339,17 +454,106 @@ else:
     PS.load()
     ds.close()
 
-    print ("Getting dim sizes")
-    ntime = LOOPIX
-    nlev  = T.sizes['lev']
-    nlat  = T.sizes['lat']
-    nlon  = T.sizes['lon']
+    ### Get specific humidity
+    print("Getting T2")
+    fname="./sample-ERA5/T2.nc"
+    ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+    VAR_2T = ds.VAR_2T[STAIX:FINIX,::stride,::stride]
+    VAR_2T = VAR_2T.rename({'time':'time','latitude':'lat','longitude':'lon'})
+    VAR_2T.load()
+    ds.close()
+
+    ### Get specific humidity
+    print("Getting D2")
+    fname="./sample-ERA5/D2.nc"
+    ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+    VAR_2D = ds.VAR_2D[STAIX:FINIX,::stride,::stride]
+    VAR_2D = VAR_2D.rename({'time':'time','latitude':'lat','longitude':'lon'})
+    VAR_2D.load()
+    ds.close()
+    # Convert dew point to specific humidity
+    VAR_2Q = mpcalc.specific_humidity_from_dewpoint(PS, VAR_2D)
 
     ## From constant pressure level T, Q, + PS, build pmid and pint arrays
-    T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],ntime,nlev,nlat,nlon)
+    T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],LOOPIX,T.sizes['lev'],T.sizes['lat'],T.sizes['lon'])
+
+    print_columns_debug(T, Q, pmid, pint, 0, 85, 110)
+
+    ## Pop on 2m T
+    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint,VAR_2T,-1)
+
+    print_columns_debug(T, Q, pmid, pint, 0, 85, 110)
+
+else:
+
+    # Sample arrays
+    T = [-12, -11, -10, -10, -9.5, -7, -7.5, -7, -6., -5, -4., -3., -1., -1., -1.]
+    Q = [25., 35., 45., 65., 35., 45., 55., 45., 50., 50., 50., 70., 90., 100., 70.]
+    lev_values = [100., 200., 300., 400., 500., 550., 600., 650., 700., 750., 800., 850., 900., 950., 1000.]
+    PS = 867.0
+    Tsrf = -2.
+    Qsrf = 98.0
+
+    # Dummy coordinates setup
+    time_coord = np.array(["1996-01-01T00:00"], dtype="datetime64")
+    lat_coord = [23.0]
+    lon_coord = [270.0]
+    TLLcoords = {'time': time_coord, 'lat': lat_coord, 'lon': lon_coord}
+
+    # Create DataArrays
+    lev_da = xr.DataArray(lev_values, dims=["lev"],name='levels')
+    T_da = xr.DataArray(T, dims=["lev"],name='T')
+    Q_da = xr.DataArray(Q, dims=["lev"],name='Q')
+
+    # Expand dimensions to include single time, lat, and lon
+    T_da = T_da.expand_dims({"time": time_coord, "lat": lat_coord, "lon": lon_coord})
+    Q_da = Q_da.expand_dims({"time": time_coord, "lat": lat_coord, "lon": lon_coord})
+    T_da = T_da.transpose("time", "lev", "lat", "lon")
+    Q_da = Q_da.transpose("time", "lev", "lat", "lon")
+
+    # Creating the PS DataArray with matching dimensionality
+    PS_da = xr.DataArray(np.full((1, 1, 1), PS), coords={"time": time_coord, "lat": lat_coord, "lon": lon_coord}, dims=["time", "lat", "lon"])
+    PS_da = PS_da.transpose("time", "lat", "lon")
+    PS_da = PS_da * 100.
+
+    T, Q, pmid, pint = constant_press_prep(T_da,Q_da,PS_da,lev_da,T_da.sizes['time'],T_da.sizes['lev'],T_da.sizes['lat'],T_da.sizes['lon'])
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+
+    # Create surface DataArrays
+    newT = xr.DataArray(
+        data=[[[[Tsrf]]]],
+        dims=['time', 'lev', 'lat', 'lon'])
+    newQ = xr.DataArray(
+        data=[[[[Qsrf]]]],
+        dims=['time', 'lev', 'lat', 'lon'])
+
+    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint,newT,newQ)
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+
+    # Convert T to K
+    T = T + 273.15
+    T = T.assign_attrs(units="K")
+
+    # Convert Q to fractional RH
+    Q = Q/100.
+    Q = Q.assign_attrs(units="%")
+    print(Q)
+
+    # Assign units to pressure arrays
+    pmid = pmid.assign_attrs(units="Pa")
+    pint = pint.assign_attrs(units="Pa")
+
+    # Calculate mixing ratio from the above T and Q
+    Q = mpcalc.mixing_ratio_from_relative_humidity(pmid, T, Q)
+    Q.name = 'Q'
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+
 
 ## Calculate ptype
-ptype = calc_ptype(T,Q,pmid,pint,-1,ntime,nlev,nlat,nlon)
+ptype = calc_ptype(T,Q,pmid,pint,-1,T.sizes['time'],T.sizes['lev'],T.sizes['lat'],T.sizes['lon'])
 
 ## Write stuff to disk
 print("Writing to disk")
@@ -360,6 +564,8 @@ output = xr.merge([ptype])
 
 if dataset == "LENS":
     output.to_netcdf('LENS-ptype.nc')
-else:
+elif dataset == "ERA5":
     outFileName = os.path.join('./ERA-ptype.nc')
     output.to_netcdf(outFileName, unlimited_dims = "time", encoding={'time':{'units':'days since 1950-01-01'}} )
+else:
+    output.to_netcdf('DEBUG-ptype.nc')
