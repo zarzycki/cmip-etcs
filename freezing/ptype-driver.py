@@ -371,7 +371,7 @@ def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix, string = ''):
 ### MAIN PROGRAM BEGINS HERE!
 
 # LENS, ERA5, or DEBUG
-dataset = "ERA5"
+dataset = "LENS"
 print("dataset "+dataset)
 
 if dataset == "LENS":
@@ -385,6 +385,16 @@ if dataset == "LENS":
     fname  = "./sample-LENS/Q.nc"
     ds = xr.open_dataset(fname)
     Q = ds.Q[:,:,:,:]
+    ds.close()
+
+    fname  = "./sample-LENS/TS.nc"
+    ds = xr.open_dataset(fname)
+    TS=ds.TS[:,:,:]
+    ds.close()
+
+    fname  = "./sample-LENS/QREFHT.nc"
+    ds = xr.open_dataset(fname)
+    QREFHT=ds.QREFHT[:,:,:]
     ds.close()
 
     fname  = "./sample-LENS/PS.nc"
@@ -407,6 +417,12 @@ if dataset == "LENS":
     # ... and time-lat-lon coords
     TLLLcoords = T.coords
     TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='before pop')
+
+    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint, TS, QREFHT)
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after pop')
 
 elif dataset == "ERA5":
 
