@@ -71,10 +71,15 @@ def calc_ptype(T,Q,pmid,pint,zint,ntim,nlev,nlat,nlon):
     TW.attrs['units'] = 'K'
 
     # We can use this to dump diags re: the thermodynamic quantities from metpy -- set to true to dump.
-    print_diags=True
+    print_diags=False
     if print_diags:
         print("NOTE: Printing diags inside of calc_ptype!")
         diags = xr.merge([T,Q,pmid,pint,rh,td,TW])
+        # Drop lev as a coordinate variable to not confuse us since there isn't really
+        # a lev anymore
+        for var_name in diags.data_vars:
+            if 'lev' in diags[var_name].coords:
+                diags[var_name] = diags[var_name].drop_vars('lev')
         outFileName = os.path.join('./diag.nc')
         diags.to_netcdf(outFileName, unlimited_dims = "time")
 
@@ -238,7 +243,7 @@ def constant_press_prep(T,Q,PS,lev,ntime,nlev,nlat,nlon):
     # Return xarray DataArrays for T, Q, pmid, and pint to main function
     return T, Q, pmid, pint
 
-# If user passes in Qsrf = -1.0
+# If user passes in Qsrf = -1.0, code will just repeat the Q nearest to the ground
 def pop_on_2m(T,Q,pmid,pint,Tsrf,Qsrf):
 
     def find_first_repeated_index(arr):
@@ -342,7 +347,12 @@ def pop_on_2m(T,Q,pmid,pint,Tsrf,Qsrf):
 
     return T_tmp, Q_tmp, pmid_tmp, pint_tmp
 
-def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix):
+def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix, string = ''):
+
+    print(f"--> SOUNDING at timeix: {timeix} latix: {latix} lonix: {lonix} --> {string}")
+
+    print(f"Dim sizes: time: {T.sizes['time']}, lev: {T.sizes['lev']}, ilev: {pint.sizes['ilev']}, lat: {T.sizes['lat']}, lon: {T.sizes['lon']}")
+
     nlev = T.sizes['lev']
 
     for i in range(nlev + 1):
@@ -361,7 +371,7 @@ def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix):
 ### MAIN PROGRAM BEGINS HERE!
 
 # LENS, ERA5, or DEBUG
-dataset = "DEBUG"
+dataset = "ERA5"
 print("dataset "+dataset)
 
 if dataset == "LENS":
@@ -477,12 +487,8 @@ elif dataset == "ERA5":
     ## From constant pressure level T, Q, + PS, build pmid and pint arrays
     T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],LOOPIX,T.sizes['lev'],T.sizes['lat'],T.sizes['lon'])
 
-    print_columns_debug(T, Q, pmid, pint, 0, 85, 110)
-
-    ## Pop on 2m T
-    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint,VAR_2T,-1)
-
-    print_columns_debug(T, Q, pmid, pint, 0, 85, 110)
+    ## Pop on 2m T/Q
+    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint, VAR_2T, VAR_2Q)
 
 else:
 
@@ -518,7 +524,7 @@ else:
 
     T, Q, pmid, pint = constant_press_prep(T_da,Q_da,PS_da,lev_da,T_da.sizes['time'],T_da.sizes['lev'],T_da.sizes['lat'],T_da.sizes['lon'])
 
-    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after constant_press_prep')
 
     # Create surface DataArrays
     newT = xr.DataArray(
@@ -530,7 +536,7 @@ else:
 
     T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint,newT,newQ)
 
-    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after pop_on_2m')
 
     # Convert T to K
     T = T + 273.15
@@ -539,7 +545,6 @@ else:
     # Convert Q to fractional RH
     Q = Q/100.
     Q = Q.assign_attrs(units="%")
-    print(Q)
 
     # Assign units to pressure arrays
     pmid = pmid.assign_attrs(units="Pa")
@@ -549,7 +554,7 @@ else:
     Q = mpcalc.mixing_ratio_from_relative_humidity(pmid, T, Q)
     Q.name = 'Q'
 
-    print_columns_debug(T, Q, pmid, pint, 0, 0, 0)
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after unit conversion')
 
 
 ## Calculate ptype
