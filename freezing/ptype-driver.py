@@ -4,7 +4,10 @@ import numpy as np
 import xarray as xr
 import metpy.calc as mpcalc
 import calpreciptype
+import time
 from tqdm import tqdm
+
+print("starting script!")
 
 def np_ffill(arr, axis):
     '''https://stackoverflow.com/a/60941040'''
@@ -370,8 +373,9 @@ def print_columns_debug(T, Q, pmid, pint, timeix, latix, lonix, string = ''):
 
 ### MAIN PROGRAM BEGINS HERE!
 
-# LENS, ERA5, or DEBUG
-dataset = "LENS"
+# LENS, ERA5, ERA5RDA, or DEBUG
+
+dataset = "ERA5RDA"
 print("dataset "+dataset)
 
 if dataset == "LENS":
@@ -506,6 +510,111 @@ elif dataset == "ERA5":
     ## Pop on 2m T/Q
     T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint, VAR_2T, VAR_2Q)
 
+elif dataset == 'ERA5RDA':
+
+    # Settings
+    YYYY="1996"
+    MM="07"
+    horizstride=4   # If 1, 0.25deg, if 2 0.5deg, if 4 1.0deg, etc.
+    timestride=6    # hourly data, take every 6th timestep to match CMIP
+    # Indices
+    STAIX=0
+    FINIX=1000000000000   # Set to super big number -- can be used for "splitting" of long files...
+
+    #--  data file name
+    fname = "/glade/campaign/collections/rda/data/ds633.0/e5.oper.an.pl/"+YYYY+MM+"/e5.oper.an.pl.128_130_t.ll025sc."+YYYY+MM+"*.nc"
+    ds    = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+
+    ### Check if the maximum time length is beyond finix, if so, truncate
+    timeArr = ds.time[::timestride]
+    MAXIX=len(timeArr.values)
+    print(timeArr)
+    print(MAXIX)
+
+    ### Fix indices
+    FINIX=min([FINIX, MAXIX])
+
+    # Calculate loop indices
+    LOOPIX=FINIX-STAIX
+
+    ### Set formatted date for output
+    formattedDate = timeArr.dt.strftime('%Y%m%d%H')
+
+    ### Get Temperature
+    print("Getting T")
+    start_time = time.time()
+    T = ds.T[::timestride,:,::horizstride,::horizstride]
+    T = T.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
+    T.load()
+    ds.close()
+    end_time = time.time()
+    print(f"time to get T took {end_time - start_time:.2f} seconds")
+
+    # Get time-lev-lat-lon coords
+    # ... and time-lat-lon coords
+    TLLLcoords = T.coords
+    TLLcoords = {'time': T.coords['time'], 'lat': T.coords['lat'], 'lon': T.coords['lon']}
+
+    start_time = time.time()
+    print("Getting T2")
+    fname  = "/glade/campaign/collections/rda/data/ds633.0/e5.oper.an.sfc/"+YYYY+MM+"/e5.oper.an.sfc.128_167_2t.ll025sc."+YYYY+MM+"0100_*.nc"
+    ds = xr.open_mfdataset(fname, combine='by_coords')
+    VAR_2T=ds.VAR_2T[::timestride,::horizstride,::horizstride]
+    VAR_2T = VAR_2T.rename({'time':'time','latitude':'lat','longitude':'lon'})
+    VAR_2T.load()
+    ds.close()
+    end_time = time.time()
+    print(f"time to get VAR_2T took {end_time - start_time:.2f} seconds")
+
+    start_time = time.time()
+    print("Getting Q")
+    fname="/glade/campaign/collections/rda/data/ds633.0/e5.oper.an.pl/"+YYYY+MM+"/e5.oper.an.pl.128_133_q.ll025sc."+YYYY+MM+"*.nc"
+    ds = xr.open_mfdataset(fname, coords="minimal", data_vars="minimal", compat="override", combine='by_coords')
+    Q = ds.Q[::timestride,:,::horizstride,::horizstride]
+    Q = Q.rename({'time':'time','level':'lev','latitude':'lat','longitude':'lon'})
+    Q.load()
+    ds.close()
+    end_time = time.time()
+    print(f"time to get Q took {end_time - start_time:.2f} seconds")
+
+    start_time = time.time()
+    print("Getting PS")
+    fname  = "/glade/campaign/collections/rda/data/ds633.0/e5.oper.an.sfc/"+YYYY+MM+"/e5.oper.an.sfc.128_134_sp.ll025sc."+YYYY+MM+"0100_*.nc"
+    ds = xr.open_mfdataset(fname, combine='by_coords')
+    PS=ds.SP[::timestride,::horizstride,::horizstride]
+    PS = PS.rename({'time':'time','latitude':'lat','longitude':'lon'})
+    PS.load()
+    ds.close()
+    end_time = time.time()
+    print(f"time to get PS took {end_time - start_time:.2f} seconds")
+
+    start_time = time.time()
+    print("Getting D2")
+    fname  = "/glade/campaign/collections/rda/data/ds633.0/e5.oper.an.sfc/"+YYYY+MM+"/e5.oper.an.sfc.128_168_2d.ll025sc."+YYYY+MM+"0100_*.nc"
+    ds = xr.open_mfdataset(fname, combine='by_coords')
+    VAR_2D=ds.VAR_2D[::timestride,::horizstride,::horizstride]
+    VAR_2D = VAR_2D.rename({'time':'time','latitude':'lat','longitude':'lon'})
+    VAR_2D.load()
+    ds.close()
+    end_time = time.time()
+    VAR_2Q = mpcalc.specific_humidity_from_dewpoint(PS, VAR_2D)
+    print(f"time to get VAR_2D took {end_time - start_time:.2f} seconds")
+
+    print ("Getting dim sizes")
+    ntime = LOOPIX
+    nlev  = T.sizes['lev']
+    nlat  = T.sizes['lat']
+    nlon  = T.sizes['lon']
+
+    ## From constant pressure level T, Q, + PS, build pmid and pint arrays
+    T, Q, pmid, pint = constant_press_prep(T,Q,PS,T.coords['lev'],ntime,nlev,nlat,nlon)
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after constant_press_prep')
+
+    T, Q, pmid, pint = pop_on_2m(T, Q, pmid, pint, VAR_2T, VAR_2Q)
+
+    print_columns_debug(T, Q, pmid, pint, 0, 0, 0, string='after pop_on_2m')
+
 else:
 
     # Sample arrays
@@ -517,7 +626,7 @@ else:
     Qsrf = 98.0
 
     # Dummy coordinates setup
-    time_coord = np.array(["1996-01-01T00:00"], dtype="datetime64")
+    time_coord = np.array(["1996-01-01T00:00"], dtype='datetime64[ns]')
     lat_coord = [23.0]
     lon_coord = [270.0]
     TLLcoords = {'time': time_coord, 'lat': lat_coord, 'lon': lon_coord}
@@ -587,6 +696,9 @@ if dataset == "LENS":
     output.to_netcdf('LENS-ptype.nc')
 elif dataset == "ERA5":
     outFileName = os.path.join('./ERA-ptype.nc')
+    output.to_netcdf(outFileName, unlimited_dims = "time", encoding={'time':{'units':'days since 1950-01-01'}} )
+elif dataset == "ERA5RDA":
+    outFileName = os.path.join('/glade/derecho/scratch/zarzycki/ERA-ptype'+YYYY+MM+'.nc')
     output.to_netcdf(outFileName, unlimited_dims = "time", encoding={'time':{'units':'days since 1950-01-01'}} )
 else:
     output.to_netcdf('DEBUG-ptype.nc')
