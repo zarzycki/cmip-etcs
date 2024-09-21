@@ -1,7 +1,6 @@
 import argparse
 import matplotlib.pyplot as plt
 from osgeo import gdal
-import numpy as np
 
 parser = argparse.ArgumentParser(description="Process an image file with GDAL and plot using matplotlib.")
 parser.add_argument("image_file", type=str, help="Path to the image file")

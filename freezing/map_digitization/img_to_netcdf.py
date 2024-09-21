@@ -7,7 +7,7 @@ from scipy.interpolate import griddata
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.io import shapereader
-from shapely.geometry import shape, Point
+from shapely.geometry import shape
 from shapely.ops import unary_union
 from shapely import vectorized
 import xarray as xr

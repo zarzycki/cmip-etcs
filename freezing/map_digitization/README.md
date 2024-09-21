@@ -1,5 +1,9 @@
 # Interpolate freezing rain
 
+```
+mamba create -n map_digitization -c conda-forge python=3.10 gdal matplotlib pillow numpy scipy cartopy shapely xarray netcdf4
+```
+
 Create a PNG file of the map. For example:
 
 Then add some control points -- x, y, lon, lat
