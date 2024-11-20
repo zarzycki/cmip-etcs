@@ -2,10 +2,16 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 import glob
+import os
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from matplotlib.colors import LinearSegmentedColormap
+
+def ensure_output_dirs():
+    """Create output directories if they don't exist"""
+    os.makedirs('nc_files', exist_ok=True)
+    os.makedirs('img', exist_ok=True)
 
 def calculate_freezing_rain_hours(ptype_file, prec_file, year, dataset):
     """
@@ -194,7 +200,7 @@ def plot_climatology(filename, dataset):
 
         # Adjust layout and save
         plt.subplots_adjust(bottom=0.15)  # Make room for colorbar
-        output_file = f'climatology_{var_name}_{dataset}.png'
+        output_file = os.path.join('img', f'climatology_{var_name}_{dataset}.png')
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         plt.close()
 
@@ -263,7 +269,7 @@ def process_dataset(dataset, start_year, end_year, datadir="./"):
     ds.attrs['period'] = f'{start_year}-{end_year}'
 
     # Save the results
-    output_file = f'freezing_rain_hours_{dataset}.nc'
+    output_file = os.path.join('nc_files', f'freezing_rain_hours_{dataset}.nc')
     ds.to_netcdf(output_file)
     print(f"Data saved to {output_file}")
 
@@ -276,12 +282,14 @@ def process_dataset(dataset, start_year, end_year, datadir="./"):
     # Create plots
     plot_climatology(output_file, dataset)
 
-# Example usage:
 if __name__ == "__main__":
     FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/'
     datasets = ['ERA5', 'CFSR', 'JRA', 'CR20']
     start_year = 1980
-    end_year = 2019
+    end_year = 2016
+
+    # Make sure relevant dirs exist locally in this folder
+    ensure_output_dirs()
 
     # Process each dataset
     for dataset in datasets:

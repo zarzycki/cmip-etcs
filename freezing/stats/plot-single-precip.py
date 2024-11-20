@@ -1,3 +1,4 @@
+import os
 import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +6,11 @@ from datetime import datetime
 import pandas as pd
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+
+# Add this function after the imports
+def ensure_output_dirs():
+    """Create output directories if they don't exist"""
+    os.makedirs('img', exist_ok=True)
 
 def get_time_index(timestamp):
     """
@@ -18,7 +24,7 @@ def get_time_index(timestamp):
     return (day_of_year * 4) + hour_index
 
 def plot_precipitation_snapshot(timestamp='2001-01-01-06', fzra_directory='./',
-                              datasets=['JRA', 'CFSR', 'CR20', 'ERA5']):
+                              datasets=['JRA', 'CFSR', 'CR20', 'ERA5', 'IMERG', 'TEST']):
     """
     Create panel plots of precipitation for all datasets at a specific timestamp
     with dynamic colorbar scaling and state boundaries
@@ -121,10 +127,11 @@ def plot_precipitation_snapshot(timestamp='2001-01-01-06', fzra_directory='./',
 
     plt.suptitle(f'Precipitation Comparison for {timestamp} (index {time_idx})', y=1.02)
 
-    # Save the plot
-    plt.savefig(f'precip_comparison_{timestamp}.png', bbox_inches='tight', dpi=300)
+    output_file = os.path.join('img', f'precip_comparison_{timestamp}.png')
+    plt.savefig(output_file, bbox_inches='tight', dpi=300)
     print(f"Plot saved as precip_comparison_{timestamp}.png")
     plt.close()
 
 FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/precip/'
+ensure_output_dirs()
 plot_precipitation_snapshot(timestamp='2005-08-29-12', fzra_directory=FZRAPATH)

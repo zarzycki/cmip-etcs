@@ -173,8 +173,9 @@ if __name__ == "__main__":
     reference_dataset = "ECMWF"
     comparison_datasets = ["ERA5", "CFSR", "CR20", "JRA"]
     start_year = 1980
-    end_year = 1981
-    skip_years = [1985, 1991, 1993, 1997]
+    end_year = 2016
+    skip_years = []
+    #skip_years = [1985, 1991, 1993, 1997]
     FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/ptypes/'
 
     results = compare_multiple_datasets_years(

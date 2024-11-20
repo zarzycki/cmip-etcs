@@ -57,7 +57,7 @@ for dataset in "${!datasets[@]}"; do
                 ncrename -O -d .latitude,lat -d .longitude,lon "$output_file" "$output_file"
                 ncrename -O -v prate,PRECT "$output_file" "$output_file"
                 ncap2 -O -s 'PRECT=PRECT*86400' -s 'PRECT@units="mm/day"' "$output_file" "$output_file"
-                ncks -O -4 -L 1 "$output_file" "$output_file"
+                #ncks -O -4 -L 1 "$output_file" "$output_file"
                 ;;
 
             "JRA")
@@ -70,7 +70,7 @@ for dataset in "${!datasets[@]}"; do
                         -v .g0_lat_2,lat -v .g0_lon_3,lon tmp.nc tmp.nc
                 ncremap -a patch -d $THISDIR/target.nc -i tmp.nc -o "$output_file"
                 ncrename -O -v TPRAT_GDS0_SFC_ave3h,PRECT "$output_file" "$output_file"
-                ncks -O -4 -L 1 "$output_file" "$output_file"
+                #ncks -O -4 -L 1 "$output_file" "$output_file"
                 ncatted -O -a units,PRECT,m,c,"mm/day" "$output_file" "$output_file"
                 rm -fv tmp.nc
                 ;;

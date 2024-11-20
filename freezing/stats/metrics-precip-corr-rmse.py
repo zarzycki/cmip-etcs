@@ -232,11 +232,11 @@ def process_verification(start_year, end_year, reference_dataset, test_datasets,
 if __name__ == "__main__":
 
     start_year = 2001
-    end_year = 2005
+    end_year = 2016
     reference_dataset = 'IMERG'  # Reference dataset
     test_datasets = ['ERA5','JRA', 'CFSR', 'CR20', 'TEST']  # Datasets to verify
     datasets_to_convert = []  # Datasets needing conversion
-    time_offsets = [-12, -6, 0, 6, 12]  # Time offsets in hours
+    time_offsets = [-6, 0, 6]  # Time offsets in hours
     threshold = 1.0  # mm/day
     FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/precip/'
 
