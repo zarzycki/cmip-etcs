@@ -232,12 +232,12 @@ def process_verification(start_year, end_year, reference_dataset, test_datasets,
 if __name__ == "__main__":
 
     start_year = 2001
-    end_year = 2016
+    end_year = 2015
     reference_dataset = 'IMERG'  # Reference dataset
     test_datasets = ['ERA5','JRA', 'CFSR', 'CR20', 'TEST']  # Datasets to verify
     datasets_to_convert = []  # Datasets needing conversion
     time_offsets = [-6, 0, 6]  # Time offsets in hours
-    threshold = 1.0  # mm/day
+    threshold = 0.1  # mm/day
     FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/precip/'
 
     # Run verification
@@ -254,6 +254,7 @@ if __name__ == "__main__":
 
     # Print summary statistics only if we have results
     if not df.empty:
+        pd.set_option('display.max_columns', None)
         print("\nFinal Summary Statistics:")
         print("========================")
         metrics_to_show = ['rmse', 'pearson_r', 'bias', 'pod', 'far', 'csi',
@@ -267,6 +268,6 @@ if __name__ == "__main__":
         # Find best offset for each dataset based on RMSE
         best_offsets = df.groupby('dataset').apply(lambda x: x.loc[x['rmse'].idxmin()])
         print("\nBest time offset for each dataset (based on minimum RMSE):")
-        print(best_offsets[['offset_hours', 'rmse', 'pearson_r', 'valid_points']])
+        print(best_offsets[['offset_hours', 'rmse', 'pearson_r', 'csi', 'valid_points']])
     else:
         print("No valid results to display")
