@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 
 def ensure_output_dirs():
     """Create output directories if they don't exist"""
@@ -15,76 +15,59 @@ def ensure_output_dirs():
 
 def calculate_freezing_rain_hours(ptype_file, prec_file, year, dataset):
     """
-    Calculate hours of freezing rain for a given year and individual mask statistics.
+    Calculate hours of freezing rain and rates for a given year and individual mask statistics.
     """
-    # Load the datasets
     ds_ptype = xr.open_dataset(ptype_file)
     ds_prec = xr.open_dataset(prec_file)
 
-    # Get the raw arrays
     freezing_rain_mask = (ds_ptype.PTYPE == 4).values
-    precipitation_mask = (ds_prec.PRECT > 10).values
+    precipitation = ds_prec.PRECT.values
 
-    # Check shapes match
-    if freezing_rain_mask.shape != precipitation_mask.shape:
-        raise ValueError(f"Shape mismatch for {dataset} year {year}: "
-                        f"PTYPE shape {freezing_rain_mask.shape} != "
-                        f"PREC shape {precipitation_mask.shape}")
+    if freezing_rain_mask.shape != precipitation.shape:
+        raise ValueError(f"Shape mismatch for {dataset} year {year}")
 
-    # Calculate individual statistics
+    # Calculate existing metrics
     ptype_hours = (freezing_rain_mask.sum(axis=0) * 6).astype(float)
-    precip_hours = (precipitation_mask.sum(axis=0) * 6).astype(float)
+    precip_mask = (precipitation > 1)
+    precip_hours = (precip_mask.sum(axis=0) * 6).astype(float)
 
-    # Calculate combined statistics
-    freezing_rain_events = freezing_rain_mask & precipitation_mask
+    freezing_rain_events = freezing_rain_mask & precip_mask
     annual_hours = (freezing_rain_events.sum(axis=0) * 6).astype(float)
 
-    # Convert all to xarray DataArrays
-    annual_hours = xr.DataArray(
-        annual_hours,
-        coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
-        dims=['lat', 'lon']
-    )
+    # Calculate new freezing rain rate metric
+    freezing_rain_rate = np.where(freezing_rain_mask, precipitation, 0).mean(axis=0)
 
-    ptype_hours = xr.DataArray(
-        ptype_hours,
-        coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
-        dims=['lat', 'lon']
-    )
-
-    precip_hours = xr.DataArray(
-        precip_hours,
-        coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
-        dims=['lat', 'lon']
-    )
+    # Convert to DataArrays
+    results = {}
+    for name, data in [
+        ('freezing_rain', annual_hours),
+        ('ptype_only', ptype_hours),
+        ('precip_only', precip_hours),
+        ('fzra_rate', freezing_rain_rate)
+    ]:
+        results[name] = xr.DataArray(
+            data,
+            coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
+            dims=['lat', 'lon']
+        )
 
     # Add metadata
-    annual_hours.attrs['units'] = 'hours'
-    annual_hours.attrs['long_name'] = f'Hours of freezing rain in {year} ({dataset})'
-    annual_hours.attrs['dataset'] = dataset
+    results['fzra_rate'].attrs['units'] = 'mm/day'
+    results['fzra_rate'].attrs['long_name'] = f'Mean freezing rain rate in {year} ({dataset})'
+    results['fzra_rate'].attrs['dataset'] = dataset
 
-    ptype_hours.attrs['units'] = 'hours'
-    ptype_hours.attrs['long_name'] = f'Hours of PTYPE=4 in {year} ({dataset})'
-    ptype_hours.attrs['dataset'] = dataset
-
-    precip_hours.attrs['units'] = 'hours'
-    precip_hours.attrs['long_name'] = f'Hours of precipitation > 1 mm/day in {year} ({dataset})'
-    precip_hours.attrs['dataset'] = dataset
-
-    # Print summary statistics
     print(f"\nSummary Statistics for {dataset} {year}:")
-    print(f"Mean hours with PTYPE=4: {ptype_hours.mean().values:.2f}")
-    print(f"Mean hours with PREC>1: {precip_hours.mean().values:.2f}")
-    print(f"Mean hours of freezing rain: {annual_hours.mean().values:.2f}")
-    print(f"Max hours of PTYPE=4: {ptype_hours.max().values:.2f}")
-    print(f"Max hours of PREC>1: {precip_hours.max().values:.2f}")
-    print(f"Max hours of freezing rain: {annual_hours.max().values:.2f}")
+    print(f"Mean hours with PTYPE=4: {results['ptype_only'].mean().values:.2f}")
+    print(f"Mean hours with PREC>1: {results['precip_only'].mean().values:.2f}")
+    print(f"Mean hours of freezing rain: {results['freezing_rain'].mean().values:.2f}")
+    print(f"Mean freezing rain rate: {results['fzra_rate'].mean().values:.2f} mm/day")
+    print(f"Max hours of PTYPE=4: {results['ptype_only'].max().values:.2f}")
+    print(f"Max hours of PREC>1: {results['precip_only'].max().values:.2f}")
+    print(f"Max hours of freezing rain: {results['freezing_rain'].max().values:.2f}")
+    print(f"Max freezing rain rate: {results['fzra_rate'].max().values:.2f} mm/day")
 
-    return {
-        'freezing_rain': annual_hours,
-        'ptype_only': ptype_hours,
-        'precip_only': precip_hours
-    }
+    return results
+
 
 def create_custom_colormap():
     """Create a custom colormap matching the example"""
@@ -112,36 +95,66 @@ def create_fzra_colormap():
     ]
     return LinearSegmentedColormap.from_list('fzra_cmap', colors)
 
+def manual_fzra_climo_colormap():
+    """Create a colormap with exactly discrete colors for FZRA flags"""
+    colors = [
+        '#ffffff',
+        '#ffee18',
+        '#ffaf40',
+        '#ff7376',
+        '#f43eb0',
+        '#920fee',
+        '#3900fe',
+        '#0000df',
+        '#000068',
+        '#000000',
+    ]
+    return ListedColormap(colors)
+
+def manual_fzra_hours_colormap():
+    """Create a colormap with exactly 7 discrete colors for FZRA flags"""
+    colors = [
+        '#2A1334',  # Dark navy
+        '#3690FD',  # Bright blue
+        '#3DF779',  # Lime green
+        '#DDD833',  # Golden yellow
+        '#EE5115',  # Red-orange
+        '#6F0604'
+    ]
+    return ListedColormap(colors)
+
+
 def plot_climatology(filename, dataset):
-    """
-    Create map plots of climatological mean hours for all three metrics
-    """
-    # Load the data
+    """Create map plots of climatological mean hours for all metrics"""
     ds = xr.open_dataset(filename, decode_times=False)
+    lons, lats = ds['lon'].values, ds['lat'].values
 
-    # Extract arrays and coordinates
-    lons = ds['lon'].values
-    lats = ds['lat'].values
 
-    # Dictionary of variables to plot with their specific settings
+
     plot_vars = {
         'climatology_freezing_rain': {
             'title': 'FZRA Hours',
-            'levels': np.arange(0, 60, 10),
-            'cmap': create_custom_colormap(),
+            'levels': np.arange(0, 61, 10),
+            'cmap': manual_fzra_hours_colormap(),
             'cbar_label': 'Hours/year'
         },
         'climatology_ptype': {
             'title': 'FZRA Flags',
-            'levels': np.arange(0, 501, 100),  # 0 to 500 in steps of 100
-            'cmap': create_fzra_colormap(),
+            'levels': np.arange(0, 550, 50),
+            'cmap': manual_fzra_climo_colormap(),
             'cbar_label': 'Freezing rain flags per year'
         },
         'climatology_precip': {
-            'title': 'Precipitation >1mm/day Hours',
-            'levels': np.arange(0, 2800, 200),
-            'cmap': create_custom_colormap(),
+            'title': 'Precipitation Hours',
+            'levels': np.arange(1000, 6100, 200),
+            'cmap': plt.cm.nipy_spectral,
             'cbar_label': 'Hours/year'
+        },
+        'climatology_fzra_rate': {
+            'title': 'FZRA Rate',
+            'levels': np.arange(0.00, 0.11, 0.01),
+            'cmap': manual_fzra_climo_colormap(),
+            'cbar_label': 'mm/day'
         }
     }
 
@@ -152,17 +165,12 @@ def plot_climatology(filename, dataset):
         # Get data for this variable
         data = ds[var_name].values
 
-        # Print diagnostic information
-        print(f"\nPlotting {dataset} {var_name}:")
-        print("Data shape:", data.shape)
-        print("Valid data range:", np.nanmin(data), "to", np.nanmax(data), "hours")
-        print("Number of NaNs:", np.sum(np.isnan(data)))
-
         # Create figure and axis
         fig = plt.figure(figsize=(12, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
 
         # Create the filled contour plot
+        print(settings['levels'])
         plot = plt.contourf(lon_mesh, lat_mesh, data,
                            levels=settings['levels'],
                            cmap=settings['cmap'],
@@ -177,9 +185,9 @@ def plot_climatology(filename, dataset):
         ax.set_extent([-100, -60, 24, 54], crs=ccrs.PlateCarree())
 
         # Add gridlines
-        gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
-        gl.top_labels = False
-        gl.right_labels = False
+        #gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+        #gl.top_labels = False
+        #gl.right_labels = False
 
         # Format lat/lon labels
         ax.set_xticks(np.arange(-100, -55, 10))
@@ -199,7 +207,7 @@ def plot_climatology(filename, dataset):
                     y=0.95, fontsize=12)
 
         # Adjust layout and save
-        plt.subplots_adjust(bottom=0.15)  # Make room for colorbar
+        plt.subplots_adjust(bottom=0.15)
         output_file = os.path.join('img', f'climatology_{var_name}_{dataset}.png')
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         plt.close()
@@ -210,12 +218,9 @@ def process_dataset(dataset, start_year, end_year, datadir="./"):
     """
     Process a single dataset and create its climatology
     """
-    print(f"\nProcessing {dataset} dataset...")
-
-    # Initialize empty dictionaries to store yearly results
-    yearly_fzra = {}
-    yearly_ptype = {}
-    yearly_precip = {}
+    yearly_results = {
+        'fzra': {}, 'ptype': {}, 'precip': {}, 'rate': {}
+    }
 
     for year in range(start_year, end_year + 1):
         ptype_file = f"{datadir}/ptypes/{dataset}-{year}.nc"
@@ -225,61 +230,57 @@ def process_dataset(dataset, start_year, end_year, datadir="./"):
             print(f"Missing files for {dataset} year {year}, skipping...")
             continue
 
-        print(f"Processing {dataset} year {year}...")
         try:
             results = calculate_freezing_rain_hours(ptype_file, prec_file, year, dataset)
-            yearly_fzra[year] = results['freezing_rain']
-            yearly_ptype[year] = results['ptype_only']
-            yearly_precip[year] = results['precip_only']
+            yearly_results['fzra'][year] = results['freezing_rain']
+            yearly_results['ptype'][year] = results['ptype_only']
+            yearly_results['precip'][year] = results['precip_only']
+            yearly_results['rate'][year] = results['fzra_rate']
         except Exception as e:
             print(f"Error processing {dataset} year {year}: {str(e)}")
             continue
 
-    if not yearly_fzra:
+    if not yearly_results['fzra']:
         print(f"No valid data found for {dataset}")
         return
 
-    # Combine all years into single datasets for each variable
-    concat_fzra = xr.concat(list(yearly_fzra.values()),
-                           dim=pd.Index(list(yearly_fzra.keys()), name='year'))
-    concat_ptype = xr.concat(list(yearly_ptype.values()),
-                            dim=pd.Index(list(yearly_ptype.keys()), name='year'))
-    concat_precip = xr.concat(list(yearly_precip.values()),
-                             dim=pd.Index(list(yearly_precip.keys()), name='year'))
+    # Combine years and calculate climatological means
+    concat_data = {}
+    climo_data = {}
 
-    # Calculate climatological means
-    climo_fzra = concat_fzra.mean(dim='year')
-    climo_ptype = concat_ptype.mean(dim='year')
-    climo_precip = concat_precip.mean(dim='year')
+    for metric in yearly_results:
+        concat_data[metric] = xr.concat(
+            list(yearly_results[metric].values()),
+            dim=pd.Index(list(yearly_results[metric].keys()), name='year')
+        )
+        climo_data[metric] = concat_data[metric].mean(dim='year')
 
     # Create output dataset
     ds = xr.Dataset({
-        'yearly_freezing_rain': concat_fzra.astype('int64'),
-        'yearly_ptype': concat_ptype.astype('int64'),
-        'yearly_precip': concat_precip.astype('int64'),
-        'climatology_freezing_rain': climo_fzra.astype(float),
-        'climatology_ptype': climo_ptype.astype(float),
-        'climatology_precip': climo_precip.astype(float)
+        'yearly_freezing_rain': concat_data['fzra'].astype('int64'),
+        'yearly_ptype': concat_data['ptype'].astype('int64'),
+        'yearly_precip': concat_data['precip'].astype('int64'),
+        'yearly_fzra_rate': concat_data['rate'].astype(float),
+        'climatology_freezing_rain': climo_data['fzra'].astype(float),
+        'climatology_ptype': climo_data['ptype'].astype(float),
+        'climatology_precip': climo_data['precip'].astype(float),
+        'climatology_fzra_rate': climo_data['rate'].astype(float)
     })
 
-    # Add global attributes
+    # Add metadata and save
     ds.attrs['description'] = f'Annual and climatological statistics for {dataset}'
     ds.attrs['creation_date'] = str(pd.Timestamp.now())
     ds.attrs['dataset'] = dataset
     ds.attrs['period'] = f'{start_year}-{end_year}'
 
-    # Save the results
     output_file = os.path.join('nc_files', f'freezing_rain_hours_{dataset}.nc')
     ds.to_netcdf(output_file)
     print(f"Data saved to {output_file}")
 
-    # Print climatological statistics
+    # Print statistics including new rate metric
     print(f"\n{dataset} Climatological Statistics:")
-    print(f"Mean hours/year with PTYPE=4: {float(climo_ptype.mean().values):.2f}")
-    print(f"Mean hours/year with PREC>1: {float(climo_precip.mean().values):.2f}")
-    print(f"Mean hours/year of freezing rain: {float(climo_fzra.mean().values):.2f}")
+    print(f"Mean freezing rain rate: {float(climo_data['rate'].mean().values):.2f} mm/day")
 
-    # Create plots
     plot_climatology(output_file, dataset)
 
 if __name__ == "__main__":
