@@ -16,25 +16,35 @@ def ensure_output_dirs():
 def calculate_freezing_rain_hours(ptype_file, prec_file, year, dataset):
     """
     Calculate hours of freezing rain and rates for a given year and individual mask statistics.
+    Now also returns the 3D mask.
     """
     ds_ptype = xr.open_dataset(ptype_file)
     ds_prec = xr.open_dataset(prec_file)
 
+    # Convert to numpy arrays first to avoid xarray broadcasting issues
     freezing_rain_mask = (ds_ptype.PTYPE == 4).values
     precipitation = ds_prec.PRECT.values
+    precip_mask = (precipitation > 1)
 
     if freezing_rain_mask.shape != precipitation.shape:
         raise ValueError(f"Shape mismatch for {dataset} year {year}")
 
+    # Create 3D mask using numpy operations
+    combined_3d_mask = xr.DataArray(
+        (freezing_rain_mask & precip_mask).astype(np.int8),
+        coords={
+            'time': ds_ptype.time,
+            'lat': ds_ptype.lat,
+            'lon': ds_ptype.lon
+        },
+        dims=['time', 'lat', 'lon']
+    )
+
     # Calculate existing metrics
     ptype_hours = (freezing_rain_mask.sum(axis=0) * 6).astype(float)
-    precip_mask = (precipitation > 1)
     precip_hours = (precip_mask.sum(axis=0) * 6).astype(float)
-
     freezing_rain_events = freezing_rain_mask & precip_mask
     annual_hours = (freezing_rain_events.sum(axis=0) * 6).astype(float)
-
-    # Calculate new freezing rain rate metric
     freezing_rain_rate = np.where(freezing_rain_mask, precipitation, 0).mean(axis=0)
 
     # Convert to DataArrays
@@ -43,28 +53,34 @@ def calculate_freezing_rain_hours(ptype_file, prec_file, year, dataset):
         ('freezing_rain', annual_hours),
         ('ptype_only', ptype_hours),
         ('precip_only', precip_hours),
-        ('fzra_rate', freezing_rain_rate)
+        ('fzra_rate', freezing_rain_rate),
+        ('fzra_3d_mask', combined_3d_mask)
     ]:
-        results[name] = xr.DataArray(
-            data,
-            coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
-            dims=['lat', 'lon']
-        )
+        if name == 'fzra_3d_mask':
+            results[name] = combined_3d_mask  # Already a DataArray
+        else:
+            results[name] = xr.DataArray(
+                data,
+                coords={'lat': ds_ptype.lat, 'lon': ds_ptype.lon},
+                dims=['lat', 'lon']
+            )
 
     # Add metadata
     results['fzra_rate'].attrs['units'] = 'mm/day'
     results['fzra_rate'].attrs['long_name'] = f'Mean freezing rain rate in {year} ({dataset})'
     results['fzra_rate'].attrs['dataset'] = dataset
 
+    # Add metadata for 3D mask
+    results['fzra_3d_mask'].attrs['long_name'] = 'Freezing rain event mask'
+    results['fzra_3d_mask'].attrs['description'] = 'Binary mask (1 where PTYPE=4 and PRECT>1, 0 otherwise)'
+    results['fzra_3d_mask'].attrs['units'] = '1'
+
     print(f"\nSummary Statistics for {dataset} {year}:")
     print(f"Mean hours with PTYPE=4: {results['ptype_only'].mean().values:.2f}")
     print(f"Mean hours with PREC>1: {results['precip_only'].mean().values:.2f}")
     print(f"Mean hours of freezing rain: {results['freezing_rain'].mean().values:.2f}")
     print(f"Mean freezing rain rate: {results['fzra_rate'].mean().values:.2f} mm/day")
-    print(f"Max hours of PTYPE=4: {results['ptype_only'].max().values:.2f}")
-    print(f"Max hours of PREC>1: {results['precip_only'].max().values:.2f}")
-    print(f"Max hours of freezing rain: {results['freezing_rain'].max().values:.2f}")
-    print(f"Max freezing rain rate: {results['fzra_rate'].max().values:.2f} mm/day")
+    print(f"Number of 3D mask points: {results['fzra_3d_mask'].sum().values}")
 
     return results
 
@@ -217,9 +233,10 @@ def plot_climatology(filename, dataset):
 def process_dataset(dataset, start_year, end_year, datadir="./"):
     """
     Process a single dataset and create its climatology
+    Now includes 3D mask output
     """
     yearly_results = {
-        'fzra': {}, 'ptype': {}, 'precip': {}, 'rate': {}
+        'fzra': {}, 'ptype': {}, 'precip': {}, 'rate': {}  # Remove '3d_mask' from here
     }
 
     for year in range(start_year, end_year + 1):
@@ -236,6 +253,15 @@ def process_dataset(dataset, start_year, end_year, datadir="./"):
             yearly_results['ptype'][year] = results['ptype_only']
             yearly_results['precip'][year] = results['precip_only']
             yearly_results['rate'][year] = results['fzra_rate']
+
+            # Save 3D mask for this year (handle separately from climatology)
+            output_file = os.path.join('nc_files', f'3d_fzra_mask_{dataset}_{year}.nc')
+            ds_3d = xr.Dataset({'fzra_mask': results['fzra_3d_mask']})
+            ds_3d.attrs['description'] = f'3D freezing rain mask for {dataset} {year}'
+            ds_3d.attrs['creation_date'] = str(pd.Timestamp.now())
+            ds_3d.to_netcdf(output_file)
+            print(f"Saved 3D mask for {year} to {output_file}")
+
         except Exception as e:
             print(f"Error processing {dataset} year {year}: {str(e)}")
             continue
@@ -287,7 +313,7 @@ if __name__ == "__main__":
     FZRAPATH = '/glade/derecho/scratch/zarzycki/FZRA/'
     datasets = ['ERA5', 'CFSR', 'JRA', 'CR20']
     start_year = 1980
-    end_year = 2016
+    end_year = 1980
 
     # Make sure relevant dirs exist locally in this folder
     ensure_output_dirs()
