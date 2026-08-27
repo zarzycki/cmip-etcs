@@ -1,0 +1,8 @@
+# Tutorial run output -- regenerate with ./01-detect-stitch-era5.sh
+output/
+*.png
+
+# ...but the committed reference tracks must be kept, since the repo-level
+# .gitignore excludes trajectory data and a new user would otherwise clone
+# with nothing to check their results against.
+!reference/*.txt.gz
